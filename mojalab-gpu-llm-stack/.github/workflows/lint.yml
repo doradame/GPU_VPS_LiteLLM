@@ -1,0 +1,80 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          severity: warning
+          scandir: ./scripts
+          additional_files: scripts/lib/common.sh
+
+  yaml-and-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install yamllint
+        run: pipx install yamllint
+      - name: Lint YAML templates
+        # Compose templates use ${VAR} which is valid YAML; yamllint config is permissive.
+        run: |
+          cat > .yamllint <<'EOF'
+          extends: default
+          rules:
+            line-length: disable
+            document-start: disable
+            truthy:
+              allowed-values: ['true', 'false', 'yes', 'no']
+          EOF
+          yamllint stack/*.tmpl || true
+
+  render-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fake config and render templates
+        run: |
+          set -euo pipefail
+          export DATA_MOUNT=/tmp/llm
+          mkdir -p "$DATA_MOUNT/stack/caddy"
+          export DOMAIN=llm.test.local ACME_EMAIL=a@b.c \
+                 ALLOWED_IPS="1.2.3.4 5.6.7.8/32" \
+                 LITELLM_IMAGE=ghcr.io/berriai/litellm:latest \
+                 LITELLM_MASTER_KEY=sk-test POSTGRES_PASSWORD=pw \
+                 OLLAMA_KEEP_ALIVE=24h OLLAMA_MAX_LOADED_MODELS=2 OLLAMA_NUM_PARALLEL=1 \
+                 VLLM_IMAGE_TAG=v0.8.5 VLLM_MODEL=test/model VLLM_SERVED_NAME=test \
+                 VLLM_GPU_MEM_UTIL=0.85 VLLM_MAX_MODEL_LEN=8192 HF_TOKEN=
+          cp stack/docker-compose.yml.tmpl "$DATA_MOUNT/stack/docker-compose.yml"
+          cp stack/Caddyfile.tmpl "$DATA_MOUNT/stack/caddy/Caddyfile"
+          cp stack/litellm-config.header.tmpl "$DATA_MOUNT/stack/litellm-config.yaml"
+      - name: Validate docker-compose syntax
+        run: |
+          cd /tmp/llm/stack
+          cat > .env <<EOF
+          COMPOSE_PROFILES=ollama,vllm
+          DOMAIN=llm.test.local
+          ACME_EMAIL=a@b.c
+          ALLOWED_IPS=1.2.3.4
+          LITELLM_IMAGE=ghcr.io/berriai/litellm:latest
+          LITELLM_MASTER_KEY=sk-test
+          POSTGRES_PASSWORD=pw
+          DATABASE_URL=postgresql://litellm:pw@db:5432/litellm
+          OLLAMA_KEEP_ALIVE=24h
+          OLLAMA_MAX_LOADED_MODELS=2
+          OLLAMA_NUM_PARALLEL=1
+          VLLM_IMAGE_TAG=v0.8.5
+          VLLM_MODEL=test/model
+          VLLM_SERVED_NAME=test
+          VLLM_GPU_MEM_UTIL=0.85
+          VLLM_MAX_MODEL_LEN=8192
+          HF_TOKEN=
+          EOF
+          docker compose --env-file .env config >/dev/null

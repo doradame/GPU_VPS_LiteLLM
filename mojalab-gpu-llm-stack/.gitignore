@@ -1,0 +1,5 @@
+# Ignore generated artefacts and secrets
+config.env
+.state/
+*.bak
+*.bak.*
