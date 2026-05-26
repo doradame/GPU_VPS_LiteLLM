@@ -14,6 +14,27 @@ load_config
 mountpoint -q "$DATA_MOUNT" || die "$DATA_MOUNT is not mounted."
 
 step "Installing Docker"
+# Remove any pre-existing Docker CE packages (from docker.com repo) that would
+# conflict with Ubuntu's docker.io / docker-compose-v2 on file paths like
+# /usr/libexec/docker/cli-plugins/docker-compose.
+CE_PKGS=(docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin docker-ce-rootless-extras)
+CE_INSTALLED=()
+for p in "${CE_PKGS[@]}"; do
+    if dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q "install ok installed"; then
+        CE_INSTALLED+=("$p")
+    fi
+done
+if [ "${#CE_INSTALLED[@]}" -gt 0 ]; then
+    info "Removing conflicting Docker CE packages: ${CE_INSTALLED[*]}"
+    systemctl stop docker docker.socket 2>/dev/null || true
+    apt-get purge -y "${CE_INSTALLED[@]}"
+fi
+# Disable docker.com apt source if present, so apt picks Ubuntu's docker.io.
+if [ -f /etc/apt/sources.list.d/docker.list ]; then
+    info "Disabling /etc/apt/sources.list.d/docker.list"
+    mv /etc/apt/sources.list.d/docker.list /etc/apt/sources.list.d/docker.list.disabled
+fi
+
 apt-get update
 apt-get install -y docker.io docker-compose-v2
 

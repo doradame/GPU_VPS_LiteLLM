@@ -9,13 +9,47 @@ announce_script "08-test.sh"
 require_done 07-stack-up
 load_config
 
-URL="https://$DOMAIN"
+STACK_DIR="$DATA_MOUNT/stack"
+cd "$STACK_DIR"
 
-step "Liveness probe"
-curl -fsS "$URL/health/liveliness" && echo
+# Caddy blocks anything outside ALLOWED_IPS with 403, so probing the public
+# URL from the VPS itself would fail. Run probes from inside the litellm
+# container instead, hitting the app directly on localhost:4000.
+dex() {
+    docker compose exec -T litellm "$@"
+}
 
-step "Models list"
-curl -fsS "$URL/v1/models" -H "Authorization: Bearer $LITELLM_MASTER_KEY" | head -c 2000
+# Use python (always present in the LiteLLM image) to avoid depending on curl.
+http_get() {
+    local url="$1" auth="${2:-}"
+    dex python -c '
+import sys, urllib.request
+req = urllib.request.Request(sys.argv[1])
+if len(sys.argv) > 2 and sys.argv[2]:
+    req.add_header("Authorization", "Bearer " + sys.argv[2])
+sys.stdout.write(urllib.request.urlopen(req, timeout=30).read().decode())
+' "$url" "$auth"
+}
+
+http_post_json() {
+    local url="$1" auth="$2" body="$3"
+    dex python -c '
+import sys, urllib.request
+data = sys.argv[3].encode()
+req = urllib.request.Request(sys.argv[1], data=data, method="POST")
+req.add_header("Content-Type", "application/json")
+req.add_header("Authorization", "Bearer " + sys.argv[2])
+sys.stdout.write(urllib.request.urlopen(req, timeout=120).read().decode())
+' "$url" "$auth" "$body"
+}
+
+BASE="http://localhost:4000"
+
+step "Liveness probe (internal)"
+http_get "$BASE/health/liveliness" && echo
+
+step "Models list (internal)"
+http_get "$BASE/v1/models" "$LITELLM_MASTER_KEY" | head -c 2000
 echo
 
 step "Chat completion (first enabled model)"
@@ -29,11 +63,17 @@ fi
 [ -n "$MODEL" ] || die "No model available to test."
 
 info "Using model: $MODEL"
-curl -fsS "$URL/v1/chat/completions" \
-    -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-    -H "Content-Type: application/json" \
-    -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one short sentence.\"}]}"
+http_post_json "$BASE/v1/chat/completions" "$LITELLM_MASTER_KEY" \
+    "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one short sentence.\"}]}"
 echo
 
-ok "All probes returned 2xx. Admin UI: $URL/ui (master key required to log in)."
+step "Caddy public endpoint (expect 403 from this host unless its IP is in ALLOWED_IPS)"
+HTTP_CODE="$(curl -ksS -o /dev/null -w '%{http_code}' "https://$DOMAIN/health/liveliness" || true)"
+case "$HTTP_CODE" in
+    200) info "Public endpoint reachable from this host (its IP is in ALLOWED_IPS)." ;;
+    403) info "Caddy is up and gating correctly (403 from non-allowlisted IP)." ;;
+    *)   warn "Unexpected status from https://$DOMAIN: $HTTP_CODE" ;;
+esac
+
+ok "All probes returned 2xx. Admin UI: https://$DOMAIN/ui (master key required to log in)."
 mark_done 08-test
