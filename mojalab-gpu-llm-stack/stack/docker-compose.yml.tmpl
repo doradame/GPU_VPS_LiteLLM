@@ -36,7 +36,15 @@ services:
       retries: 10
 
   litellm:
-    image: ${LITELLM_IMAGE}
+    # Derived image: base LITELLM_IMAGE + Pillow (required by image/vision
+    # handling code paths in LiteLLM, otherwise some requests fail).
+    image: mojalab/litellm-pillow:local
+    pull_policy: build
+    build:
+      dockerfile_inline: |
+        FROM ${LITELLM_IMAGE}
+        USER root
+        RUN pip install --no-cache-dir Pillow
     restart: unless-stopped
     depends_on:
       db:

@@ -17,6 +17,9 @@ step "Pulling images"
 docker compose --env-file .env pull --ignore-buildable || \
     docker compose --env-file .env pull
 
+step "Building local images (litellm + Pillow)"
+docker compose --env-file .env build
+
 step "Starting services"
 docker compose --env-file .env up -d
 
