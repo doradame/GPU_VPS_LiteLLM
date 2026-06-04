@@ -44,7 +44,15 @@ services:
       dockerfile_inline: |
         FROM ${LITELLM_IMAGE}
         USER root
-        RUN python -m pip install --no-cache-dir Pillow
+        # LiteLLM image ships a venv at /app/.venv without pip (built with uv).
+        # Bootstrap pip via ensurepip, fall back to uv if present.
+        RUN set -eux; \
+            if command -v uv >/dev/null 2>&1; then \
+                uv pip install --no-cache-dir --python /app/.venv/bin/python Pillow; \
+            else \
+                python -m ensurepip --upgrade && \
+                python -m pip install --no-cache-dir Pillow; \
+            fi
     restart: unless-stopped
     depends_on:
       db:
