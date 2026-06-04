@@ -44,7 +44,7 @@ services:
       dockerfile_inline: |
         FROM ${LITELLM_IMAGE}
         USER root
-        RUN pip install --no-cache-dir Pillow
+        RUN python -m pip install --no-cache-dir Pillow
     restart: unless-stopped
     depends_on:
       db:
