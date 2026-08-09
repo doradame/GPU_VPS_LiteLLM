@@ -17,8 +17,15 @@ services:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    healthcheck:
+      # Caddy's admin API (localhost:2019) is enabled by default.
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
     depends_on:
-      - litellm
+      litellm:
+        condition: service_healthy
 
   db:
     image: postgres:16
@@ -65,10 +72,17 @@ services:
     volumes:
       - ./litellm-config.yaml:/app/config.yaml:ro
     command: ["--config", "/app/config.yaml", "--port", "4000", "--host", "0.0.0.0"]
+    healthcheck:
+      # python (not curl) is what the LiteLLM image reliably ships.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
 
   ollama:
     profiles: ["ollama"]
-    image: ollama/ollama:latest
+    image: ollama/ollama:${OLLAMA_IMAGE_TAG}
     restart: unless-stopped
     expose:
       - "11434"
@@ -79,6 +93,11 @@ services:
       OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS}
     volumes:
       - ../ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     deploy:
       resources:
         reservations:
@@ -113,6 +132,13 @@ services:
       - "0.0.0.0"
       - "--port"
       - "8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      # First start can take minutes: model download + weight loading.
+      start_period: 600s
     deploy:
       resources:
         reservations:

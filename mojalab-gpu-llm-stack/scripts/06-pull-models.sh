@@ -18,7 +18,7 @@ if [ "$ENABLE_OLLAMA" = "yes" ] && [ -n "${OLLAMA_MODELS_PULL:-}" ]; then
     docker rm -f ollama-puller 2>/dev/null || true
     docker run -d --name ollama-puller --gpus all \
         -v "$OLLAMA_DATA":/root/.ollama \
-        ollama/ollama:latest >/dev/null
+        "ollama/ollama:${OLLAMA_IMAGE_TAG}" >/dev/null
     info "Waiting for ollama API to be ready..."
     for _ in $(seq 1 30); do
         if docker exec ollama-puller ollama list >/dev/null 2>&1; then break; fi

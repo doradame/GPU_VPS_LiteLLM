@@ -42,6 +42,7 @@ if [ "$ENABLE_OLLAMA" = "no" ] && [ "$ENABLE_VLLM" = "no" ]; then
 fi
 
 if [ "$ENABLE_OLLAMA" = "yes" ]; then
+    prompt_default OLLAMA_IMAGE_TAG   "Ollama image tag (PIN to a release!)" "0.32.6"
     prompt_default OLLAMA_MODELS_PULL "Ollama models to pull (space-separated tags)" "gemma4:31b"
     prompt_default OLLAMA_KEEP_ALIVE  "OLLAMA_KEEP_ALIVE"        "24h"
     prompt_default OLLAMA_MAX_LOADED_MODELS "OLLAMA_MAX_LOADED_MODELS" "2"
@@ -70,7 +71,7 @@ touch "$CONFIG_FILE"; chmod 600 "$CONFIG_FILE"
 for v in DATA_DEVICE DATA_MOUNT LUKS_NAME LUKS_KEYFILE \
          DOMAIN ACME_EMAIL ALLOWED_IPS \
          ENABLE_OLLAMA ENABLE_VLLM \
-         OLLAMA_MODELS_PULL OLLAMA_KEEP_ALIVE OLLAMA_MAX_LOADED_MODELS OLLAMA_NUM_PARALLEL \
+         OLLAMA_IMAGE_TAG OLLAMA_MODELS_PULL OLLAMA_KEEP_ALIVE OLLAMA_MAX_LOADED_MODELS OLLAMA_NUM_PARALLEL \
          VLLM_IMAGE_TAG VLLM_MODEL VLLM_SERVED_NAME VLLM_GPU_MEM_UTIL VLLM_MAX_MODEL_LEN HF_TOKEN \
          NVIDIA_DRIVER_PKG LITELLM_IMAGE; do
     write_config "$v" "${!v:-}"

@@ -7,6 +7,9 @@
 }
 
 {$DOMAIN} {
+    # NOTE: client_ip sees the direct peer address. If this VPS sits behind a
+    # provider load balancer / proxy, add a `trusted_proxies` directive in the
+    # global options so the real client IP is taken from X-Forwarded-For.
     @allowed {
         client_ip {$ALLOWED_IPS}
     }
