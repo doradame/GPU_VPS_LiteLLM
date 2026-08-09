@@ -6,6 +6,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 announce_script "08-test.sh"
 
+# The stack dir is root-owned and .env is mode 600, and docker compose reads
+# .env automatically — so this script needs root like the others.
+require_root
 require_done 07-stack-up
 load_config
 

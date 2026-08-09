@@ -86,16 +86,19 @@ load_config() {
 }
 
 # write_config KEY VALUE — upsert into config.env
+# The value is single-quoted so config.env stays sourceable even when it
+# contains spaces or shell metacharacters (e.g. ALLOWED_IPS="1.2.3.4 5.6.7.8/32").
 write_config() {
     local key="$1" val="$2"
     touch "$CONFIG_FILE"
     chmod 600 "$CONFIG_FILE"
+    local quoted; quoted="'$(printf '%s' "$val" | sed "s/'/'\\\\''/g")'"
     if grep -qE "^${key}=" "$CONFIG_FILE"; then
-        # escape & and / for sed replacement
-        local esc; esc="$(printf '%s' "$val" | sed -e 's/[&/\]/\\&/g')"
+        # escape \, & and the | delimiter for the sed replacement
+        local esc; esc="$(printf '%s' "$quoted" | sed 's/[&|\]/\\&/g')"
         sed -i "s|^${key}=.*|${key}=${esc}|" "$CONFIG_FILE"
     else
-        printf '%s=%s\n' "$key" "$val" >> "$CONFIG_FILE"
+        printf '%s=%s\n' "$key" "$quoted" >> "$CONFIG_FILE"
     fi
 }
 

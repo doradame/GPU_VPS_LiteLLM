@@ -13,7 +13,12 @@ load_config
 
 step "Sanity checks"
 [ -b "$DATA_DEVICE" ] || die "$DATA_DEVICE is not a block device. Check lsblk."
-PART="${DATA_DEVICE}1"
+# Devices whose name ends in a digit (nvme0n1, mmcblk0) get a 'p' separator
+# before the partition number; classic sdX devices do not.
+case "$DATA_DEVICE" in
+    *[0-9]) PART="${DATA_DEVICE}p1" ;;
+    *)      PART="${DATA_DEVICE}1"  ;;
+esac
 
 apt-get install -y cryptsetup parted
 
