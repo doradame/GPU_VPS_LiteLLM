@@ -15,16 +15,16 @@ jobs:
         with:
           severity: warning
           scandir: ./scripts
-          additional_files: scripts/lib/common.sh
+          additional_files: scripts/lib/common.sh stack/backup-db.sh
 
-  yaml-and-compose:
+  yaml-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install yamllint
         run: pipx install yamllint
       - name: Lint YAML templates
-        # Compose templates use ${VAR} which is valid YAML; yamllint config is permissive.
+        # Only the YAML templates — Caddyfile.tmpl is Caddyfile syntax, not YAML.
         run: |
           cat > .yamllint <<'EOF'
           extends: default
@@ -34,47 +34,61 @@ jobs:
             truthy:
               allowed-values: ['true', 'false', 'yes', 'no']
           EOF
-          yamllint stack/*.tmpl || true
+          yamllint stack/docker-compose.yml.tmpl stack/litellm-config.header.tmpl
 
-  render-smoke-test:
+  write-config-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Fake config and render templates
+      - name: write_config round-trip (spaces, quotes, metacharacters)
+        run: bash scripts/tests/write-config-test.sh
+
+  scripts-render-e2e:
+    # Runs the REAL scripts (00-preflight + 05-stack-config) instead of
+    # hand-copying templates, then validates everything they produced.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run 00-preflight.sh non-interactively
         run: |
           set -euo pipefail
-          export DATA_MOUNT=/tmp/llm
-          mkdir -p "$DATA_MOUNT/stack/caddy"
-          export DOMAIN=llm.test.local ACME_EMAIL=a@b.c \
-                 ALLOWED_IPS="1.2.3.4 5.6.7.8/32" \
-                 LITELLM_IMAGE=ghcr.io/berriai/litellm:latest \
-                 LITELLM_MASTER_KEY=sk-test POSTGRES_PASSWORD=pw \
+          # prompt_default/prompt_yesno skip any variable that is already set,
+          # so exporting everything makes the script fully non-interactive.
+          export DATA_DEVICE=/dev/sdb DATA_MOUNT=/tmp/llm \
+                 LUKS_NAME=llm_crypt LUKS_KEYFILE=/root/llm.key \
+                 DOMAIN=llm.test.local ACME_EMAIL=a@b.c \
+                 ALLOWED_IPS='1.2.3.4 5.6.7.8/32' \
+                 ENABLE_OLLAMA=yes ENABLE_VLLM=yes \
+                 OLLAMA_IMAGE_TAG=0.32.6 \
+                 OLLAMA_MODELS_PULL='gemma4:31b llama3.1:8b' \
                  OLLAMA_KEEP_ALIVE=24h OLLAMA_MAX_LOADED_MODELS=2 OLLAMA_NUM_PARALLEL=1 \
-                 VLLM_IMAGE_TAG=v0.8.5 VLLM_MODEL=test/model VLLM_SERVED_NAME=test \
-                 VLLM_GPU_MEM_UTIL=0.85 VLLM_MAX_MODEL_LEN=8192 HF_TOKEN=
-          cp stack/docker-compose.yml.tmpl "$DATA_MOUNT/stack/docker-compose.yml"
-          cp stack/Caddyfile.tmpl "$DATA_MOUNT/stack/caddy/Caddyfile"
-          cp stack/litellm-config.header.tmpl "$DATA_MOUNT/stack/litellm-config.yaml"
-      - name: Validate docker-compose syntax
+                 VLLM_IMAGE_TAG=v0.8.5 VLLM_MODEL=test/model VLLM_SERVED_NAME=testvllm \
+                 VLLM_GPU_MEM_UTIL=0.85 VLLM_MAX_MODEL_LEN=8192 HF_TOKEN= \
+                 NVIDIA_DRIVER_PKG=nvidia-driver-580-server \
+                 LITELLM_IMAGE=ghcr.io/berriai/litellm:latest
+          ./scripts/00-preflight.sh </dev/null
+      - name: config.env must be sourceable under set -u (quoting regression)
         run: |
+          bash -euo pipefail -c '
+            set -a; . ./config.env; set +a
+            [ "$ALLOWED_IPS" = "1.2.3.4 5.6.7.8/32" ]
+            [ "$OLLAMA_MODELS_PULL" = "gemma4:31b llama3.1:8b" ]
+          '
+      - name: Run 05-stack-config.sh (skipping host-only prerequisites)
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/llm
+          # Steps 01-04 need a GPU/disk; fake their completion markers.
+          touch .state/01-nvidia-driver.done .state/02-luks-volume.done \
+                .state/03-docker.done .state/04-nvidia-toolkit.done
+          sudo ./scripts/05-stack-config.sh
+      - name: Validate rendered stack
+        run: |
+          set -euo pipefail
           cd /tmp/llm/stack
-          cat > .env <<EOF
-          COMPOSE_PROFILES=ollama,vllm
-          DOMAIN=llm.test.local
-          ACME_EMAIL=a@b.c
-          ALLOWED_IPS=1.2.3.4
-          LITELLM_IMAGE=ghcr.io/berriai/litellm:latest
-          LITELLM_MASTER_KEY=sk-test
-          POSTGRES_PASSWORD=pw
-          DATABASE_URL=postgresql://litellm:pw@db:5432/litellm
-          OLLAMA_KEEP_ALIVE=24h
-          OLLAMA_MAX_LOADED_MODELS=2
-          OLLAMA_NUM_PARALLEL=1
-          VLLM_IMAGE_TAG=v0.8.5
-          VLLM_MODEL=test/model
-          VLLM_SERVED_NAME=test
-          VLLM_GPU_MEM_UTIL=0.85
-          VLLM_MAX_MODEL_LEN=8192
-          HF_TOKEN=
-          EOF
-          docker compose --env-file .env config >/dev/null
+          sudo docker compose --env-file .env config >/dev/null
+          sudo grep -q 'model: ollama/gemma4:31b'   litellm-config.yaml
+          sudo grep -q 'model: ollama/llama3.1:8b'  litellm-config.yaml
+          sudo grep -q 'model: openai/testvllm'     litellm-config.yaml
+          sudo test -x backup-db.sh
+          sudo test -f /etc/cron.d/llm-db-backup
