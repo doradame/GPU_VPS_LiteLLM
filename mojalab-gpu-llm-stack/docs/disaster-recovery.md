@@ -7,6 +7,7 @@ setup". The encrypted volume already contains:
 - The compose project (`${DATA_MOUNT}/stack/`)
 - The Docker data-root (`${DATA_MOUNT}/docker/`) — images and volumes
 - The PostgreSQL data (`${DATA_MOUNT}/stack/pgdata/`)
+- Nightly DB dumps (`${DATA_MOUNT}/stack/backups/`, 14 most recent)
 - Ollama models (`${DATA_MOUNT}/ollama/`)
 - vLLM HF cache (`${DATA_MOUNT}/vllm/hf-cache/`)
 - Let's Encrypt certs (Docker named volumes — also under the data-root)
@@ -18,6 +19,7 @@ What does NOT come with the volume:
 - The NVIDIA Container Toolkit
 - The LUKS keyfile (`/root/${LUKS_BASENAME}.key`) — back this up off the VPS
 - The systemd drop-in `/etc/systemd/system/docker.service.d/wait-for-data.conf`
+- The backup cron `/etc/cron.d/llm-db-backup` (re-created by step 05)
 - `/etc/docker/daemon.json` pointing to the new data-root
 - `/etc/crypttab` and `/etc/fstab` entries
 
@@ -62,7 +64,7 @@ What does NOT come with the volume:
    # The compose project is intact. Just bring it up:
    cd ${DATA_MOUNT}/stack
    docker compose --env-file .env up -d
-   ./scripts/08-test.sh
+   sudo ./scripts/08-test.sh
    ```
 
 6. **Optional**: rerun `99-ufw.sh` if you used UFW originally.

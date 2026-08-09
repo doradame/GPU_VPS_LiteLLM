@@ -88,7 +88,7 @@ sudo ./scripts/06-pull-models.sh
 sudo ./scripts/07-stack-up.sh
 
 # 9. Smoke test
-./scripts/08-test.sh
+sudo ./scripts/08-test.sh
 
 # Optional: host firewall via UFW (gotchas handled internally)
 sudo ./scripts/99-ufw.sh
@@ -114,6 +114,7 @@ Key settings:
 | `DOMAIN` | Public FQDN — must have an A record pointing here |
 | `ALLOWED_IPS` | Space-separated IPs/CIDRs allowed through Caddy |
 | `ENABLE_OLLAMA` / `ENABLE_VLLM` | Toggle either engine independently |
+| `OLLAMA_IMAGE_TAG` | Pinned Ollama image tag (see github.com/ollama/ollama/releases) |
 | `OLLAMA_MODELS_PULL` | Space-separated Ollama tags pulled by step 06 |
 | `VLLM_MODEL` | HuggingFace model id for vLLM |
 | `LITELLM_MASTER_KEY` | Auto-generated `sk-...` key — save it in a password manager |
@@ -129,6 +130,20 @@ docker compose --env-file .env restart litellm          # restart one service
 docker compose --env-file .env up -d                    # apply changes
 docker compose exec caddy caddy reload \
     --config /etc/caddy/Caddyfile                       # reload Caddy only
+```
+
+### Database backups
+
+`05-stack-config.sh` installs a nightly cron job (`/etc/cron.d/llm-db-backup`)
+that dumps the LiteLLM database to `${DATA_MOUNT}/stack/backups/`, keeping the
+14 most recent dumps. Since `backups/` lives on the encrypted volume, dumps
+survive VM rebuilds along with everything else.
+
+```bash
+sudo ${DATA_MOUNT}/stack/backup-db.sh        # manual backup
+# restore:
+gunzip -c backups/litellm-<stamp>.sql.gz | \
+    docker compose --env-file .env exec -T db psql -U litellm litellm
 ```
 
 ### Changing allowed IPs
@@ -237,12 +252,15 @@ The one trade-off is that the `ollama` CLI on the host is gone; use
 │   ├── 06-pull-models.sh
 │   ├── 07-stack-up.sh
 │   ├── 08-test.sh
-│   └── 99-ufw.sh               # optional host firewall
+│   ├── 99-ufw.sh               # optional host firewall
+│   └── tests/                  # regression tests run by CI
 ├── stack/
 │   ├── docker-compose.yml.tmpl
 │   ├── Caddyfile.tmpl
-│   └── litellm-config.header.tmpl
+│   ├── litellm-config.header.tmpl
+│   └── backup-db.sh            # nightly pg_dump, installed by step 05
 └── docs/
+    ├── guide.md
     └── disaster-recovery.md
 ```
 

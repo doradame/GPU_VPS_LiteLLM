@@ -455,7 +455,7 @@ Things to look for in the logs:
 ## Part 10 — Testing
 
 ```bash
-./scripts/08-test.sh
+sudo ./scripts/08-test.sh
 ```
 
 The script runs three probes:
@@ -499,6 +499,28 @@ docker compose --env-file .env up -d          # start everything
 # Caddyfile-only changes can be reloaded without restart:
 docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```
+
+### Database backups
+
+Step 05 installs `/etc/cron.d/llm-db-backup`, which runs
+`${DATA_MOUNT}/stack/backup-db.sh` nightly at 03:17: a `pg_dump` of the
+LiteLLM database, gzipped into `${DATA_MOUNT}/stack/backups/` with a
+14-dump retention. The dumps live on the encrypted volume, so they follow
+the disk through VM rebuilds.
+
+```bash
+sudo ${DATA_MOUNT}/stack/backup-db.sh     # manual backup
+# restore into the running db container:
+gunzip -c backups/litellm-<stamp>.sql.gz | \
+    docker compose --env-file .env exec -T db psql -U litellm litellm
+```
+
+### Health checks
+
+Every service has a Docker healthcheck (`docker compose ps` shows
+`healthy`/`unhealthy`). Caddy only starts once LiteLLM is healthy; vLLM
+has a 10-minute grace period on first start to allow for model download
+and weight loading.
 
 ### Changing allowed IPs
 
@@ -571,7 +593,7 @@ the short version:
 5. Skip 05 and 06 — the compose project and the models are already on
    the disk.
 6. `cd ${DATA_MOUNT}/stack && docker compose --env-file .env up -d`.
-7. `./scripts/08-test.sh`.
+7. `sudo ./scripts/08-test.sh`.
 
 Time budget after two or three rehearsals: 10-15 minutes.
 
