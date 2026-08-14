@@ -1,11 +1,11 @@
 # mojalab-gpu-llm-stack
 
-> **Status: untested / work in progress.** This repository is published for review and
-> feedback. The scripts and templates have been linted (`shellcheck`, `bash -n`,
-> `docker compose config`) but **have not yet been executed end-to-end on a real VPS**.
-> Expect rough edges. If you run it, please open an issue with what worked and what
-> didn't. Do **not** point production traffic at this until you have verified it
-> yourself.
+> **Status: validated end-to-end on real hardware.** The full sequence — from
+> `00-preflight` to the smoke test — has been executed on a real GPU VPS,
+> serving two vLLM models concurrently behind LiteLLM, including a reboot
+> survival check and an online volume resize along the way. Field bugs found
+> during that run are fixed and covered by regression tests, and CI lints
+> every script and runs the real render/docker steps on each push.
 
 A reproducible, script-driven setup for a production-grade local LLM proxy on a GPU VPS.
 Designed for ephemeral VMs: all persistent state lives on a LUKS-encrypted secondary
