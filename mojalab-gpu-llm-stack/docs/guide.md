@@ -244,14 +244,24 @@ What the script does:
    mounted — otherwise, on a boot where the LUKS volume failed to open,
    Docker would happily create a fresh empty data-root on the root
    filesystem and silently lose access to everything.
-6. **Starts Docker** and confirms `Docker Root Dir` is on the encrypted
-   volume.
+6. **Moves containerd's root too** (`${DATA_MOUNT}/containerd`, via
+   `/etc/containerd/config.toml`). Docker 28+ uses the *containerd image
+   store*: `data-root` then only holds containers and volumes, while
+   **images** live under containerd's root — which by default is
+   `/var/lib/containerd` on the OS disk. Without this step, a 17 GB vLLM
+   image quietly fills the root filesystem and disappears with the VM.
+   The same `RequiresMountsFor` drop-in is applied to `containerd.service`.
+7. **Starts both services and dies loudly** if `docker info` reports a
+   `Docker Root Dir` different from `${DATA_MOUNT}/docker`, or if the
+   containerd image store is active but its root is not on the volume.
 
 Verify:
 
 ```bash
-docker info | grep "Docker Root Dir"
+docker info | grep -E "Docker Root Dir|Storage Driver"
 # Docker Root Dir: /srv/llm/docker
+grep '^root' /etc/containerd/config.toml
+# root = "/srv/llm/containerd"
 ```
 
 ---

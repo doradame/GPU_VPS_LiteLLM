@@ -66,21 +66,56 @@ else
 EOF
 fi
 
-step "Configuring docker.service to wait for $DATA_MOUNT"
-mkdir -p /etc/systemd/system/docker.service.d
-cat > /etc/systemd/system/docker.service.d/wait-for-data.conf <<EOF
+step "Configuring containerd image store → $DATA_MOUNT/containerd"
+# Docker 28+ uses the containerd image store by default: data-root then only
+# holds containers and volumes, while IMAGES live under containerd's root
+# (default /var/lib/containerd — the OS disk). Point containerd at the
+# encrypted volume too, or images fill the OS disk and die with the VM.
+CONTAINERD_ROOT="$DATA_MOUNT/containerd"
+mkdir -p "$CONTAINERD_ROOT" /etc/containerd
+systemctl stop containerd 2>/dev/null || true
+if [ ! -s /etc/containerd/config.toml ]; then
+    containerd config default > /etc/containerd/config.toml
+fi
+if grep -qE '^root = ' /etc/containerd/config.toml; then
+    sed -i "s|^root = .*|root = \"$CONTAINERD_ROOT\"|" /etc/containerd/config.toml
+else
+    sed -i "1i root = \"$CONTAINERD_ROOT\"" /etc/containerd/config.toml
+fi
+if [ -d /var/lib/containerd ] && [ -n "$(ls -A /var/lib/containerd 2>/dev/null)" ] \
+        && [ -z "$(ls -A "$CONTAINERD_ROOT" 2>/dev/null)" ]; then
+    info "Migrating existing /var/lib/containerd contents to $CONTAINERD_ROOT"
+    rsync -a /var/lib/containerd/ "$CONTAINERD_ROOT/"
+    mv /var/lib/containerd "/var/lib/containerd.OLD.$(date +%s)"
+fi
+
+step "Making docker and containerd wait for $DATA_MOUNT"
+for svc in docker containerd; do
+    mkdir -p "/etc/systemd/system/${svc}.service.d"
+    cat > "/etc/systemd/system/${svc}.service.d/wait-for-data.conf" <<EOF
 [Unit]
 RequiresMountsFor=$DATA_MOUNT
 EOF
+done
 systemctl daemon-reload
 
-step "Starting Docker"
+step "Starting containerd and Docker"
+systemctl enable --now containerd
 systemctl enable --now docker
-docker info | grep "Docker Root Dir"
 
-for old in /var/lib/docker.OLD.*; do
+step "Verifying that images and containers land on $DATA_MOUNT"
+ROOT_DIR="$(docker info -f '{{ .DockerRootDir }}')"
+[ "$ROOT_DIR" = "$DOCKER_DATA" ] \
+    || die "Docker Root Dir is '$ROOT_DIR', expected '$DOCKER_DATA'. Check /etc/docker/daemon.json."
+if docker info 2>/dev/null | grep -q 'io.containerd.snapshotter'; then
+    grep -q "^root = \"$CONTAINERD_ROOT\"" /etc/containerd/config.toml \
+        || die "Docker uses the containerd image store but containerd root is not $CONTAINERD_ROOT."
+fi
+ok "Docker Root Dir: $ROOT_DIR — containerd root: $CONTAINERD_ROOT"
+
+for old in /var/lib/docker.OLD.* /var/lib/containerd.OLD.*; do
     if [ -d "$old" ]; then
-        warn "Old data root left at $old — remove it manually when satisfied."
+        warn "Old data left at $old — remove it manually when satisfied."
     fi
 done
 

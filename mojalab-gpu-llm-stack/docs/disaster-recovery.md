@@ -5,7 +5,8 @@ procedure is essentially "attach the disk to a new VM and replay the host-side
 setup". The encrypted volume already contains:
 
 - The compose project (`${DATA_MOUNT}/stack/`)
-- The Docker data-root (`${DATA_MOUNT}/docker/`) — images and volumes
+- The Docker data-root (`${DATA_MOUNT}/docker/`) — containers and volumes
+- The containerd image store (`${DATA_MOUNT}/containerd/`) — images (Docker 28+)
 - The PostgreSQL data (`${DATA_MOUNT}/stack/pgdata/`)
 - Nightly DB dumps (`${DATA_MOUNT}/stack/backups/`, 14 most recent)
 - Ollama models (`${DATA_MOUNT}/ollama/`)
@@ -21,6 +22,7 @@ What does NOT come with the volume:
 - The systemd drop-in `/etc/systemd/system/docker.service.d/wait-for-data.conf`
 - The backup cron `/etc/cron.d/llm-db-backup` (re-created by step 05)
 - `/etc/docker/daemon.json` pointing to the new data-root
+- `/etc/containerd/config.toml` pointing containerd's root at the volume
 - `/etc/crypttab` and `/etc/fstab` entries
 
 ## Procedure

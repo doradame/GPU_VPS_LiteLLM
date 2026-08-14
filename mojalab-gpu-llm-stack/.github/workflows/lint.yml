@@ -78,13 +78,32 @@ jobs:
             [ "$ALLOWED_IPS" = "1.2.3.4 5.6.7.8/32" ]
             [ "$OLLAMA_MODELS_PULL" = "gemma4:31b llama3.1:8b" ]
           '
-      - name: Run 05-stack-config.sh (skipping host-only prerequisites)
+      - name: Run 03-docker.sh for real (data-root + containerd on the data volume)
         run: |
           set -euo pipefail
           mkdir -p /tmp/llm
-          # Steps 01-04 need a GPU/disk; fake their completion markers.
-          touch .state/01-nvidia-driver.done .state/02-luks-volume.done \
-                .state/03-docker.done .state/04-nvidia-toolkit.done
+          # 03 requires DATA_MOUNT to be a mountpoint; a bind mount will do.
+          sudo mount --bind /tmp/llm /tmp/llm
+          # Steps 01-02 need a GPU/disk; fake their completion markers.
+          touch .state/01-nvidia-driver.done .state/02-luks-volume.done
+          sudo ./scripts/03-docker.sh
+      - name: Images must land on the data volume, not the OS disk
+        run: |
+          set -euo pipefail
+          sudo docker pull postgres:16-alpine
+          leaked="$(sudo du -s /var/lib/containerd 2>/dev/null | cut -f1 || echo 0)"
+          if [ "${leaked:-0}" -ge 51200 ]; then
+            echo "FAIL: image data leaked to /var/lib/containerd (${leaked} KB)"; exit 1
+          fi
+          used="$(sudo du -s /tmp/llm | cut -f1)"
+          if [ "$used" -lt 100000 ]; then
+            echo "FAIL: expected image data under /tmp/llm, found only ${used} KB"; exit 1
+          fi
+          echo "OK: ${used} KB under /tmp/llm, ${leaked:-0} KB left on the OS disk"
+      - name: Run 05-stack-config.sh
+        run: |
+          set -euo pipefail
+          touch .state/04-nvidia-toolkit.done
           sudo ./scripts/05-stack-config.sh
       - name: Validate rendered stack
         run: |
