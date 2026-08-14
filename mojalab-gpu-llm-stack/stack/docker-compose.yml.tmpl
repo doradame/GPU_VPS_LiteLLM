@@ -149,6 +149,14 @@ services:
     profiles: ["vllm2"]
     image: vllm/vllm-openai:${VLLM_IMAGE_TAG}
     restart: unless-stopped
+    # vLLM's --gpu-memory-utilization is a cap on TOTAL GPU memory including
+    # other processes, so on a shared GPU the second instance must (a) start
+    # only after the first has claimed its memory and (b) use a CUMULATIVE
+    # cap (first's fraction + its own share, e.g. 0.55 + 0.35 -> 0.90).
+    depends_on:
+      vllm:
+        condition: service_healthy
+        required: false
     expose:
       - "8000"
     ipc: host

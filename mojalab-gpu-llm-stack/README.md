@@ -176,9 +176,12 @@ then `up -d vllm`.
 One vLLM process serves one model, so a second model runs in its own
 container: set `ENABLE_VLLM2=yes` and the `VLLM2_*` variables in
 `config.env`, re-run steps 05 and 06, then `up -d`. When both share a GPU,
-each `GPU_MEM_UTIL` is a fraction of **total** VRAM reserved up front — the
-two fractions must sum to ≤ ~0.90 (e.g. 0.55 + 0.35) or the first process
-starves the second. Any additional `vllm serve` flag (`--max-num-seqs`,
+mind vLLM's semantics: `--gpu-memory-utilization` is a cap on **total** GPU
+memory *including other processes*, not a private share. So the second
+instance needs a **cumulative** cap — teacher `0.55`, critic
+`0.55 + 0.35 = 0.90` — and must start after the first has claimed its
+memory (the compose file orders `vllm2` after `vllm` becomes healthy for
+exactly this reason). Any additional `vllm serve` flag (`--max-num-seqs`,
 `--enable-prefix-caching`, `--guided-decoding-backend xgrammar`, ...) goes
 in `VLLM_EXTRA_ARGS` / `VLLM2_EXTRA_ARGS`.
 

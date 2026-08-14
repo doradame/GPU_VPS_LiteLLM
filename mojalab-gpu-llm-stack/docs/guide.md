@@ -346,10 +346,14 @@ GPU memory fraction; LiteLLM routes to both by name.
 
 Two caveats when both share one GPU:
 
-- `GPU_MEM_UTIL` is a fraction of **total** VRAM, reserved up front by
-  each process. The two fractions must sum to ≤ ~0.90 (e.g. teacher
-  0.55 + critic 0.35), otherwise the first process to start grabs the
-  memory and the second OOMs.
+- vLLM's `--gpu-memory-utilization` is a cap on **total** GPU memory
+  *including what other processes already occupy*, not a private share.
+  The second instance therefore needs a **cumulative** cap: teacher
+  `0.55`, critic `0.55 + 0.35 = 0.90`. With a non-cumulative value the
+  second engine finds its budget already exhausted and dies with
+  "No available memory for the cache blocks" (found the hard way on a
+  real deployment). Startup order matters for the same reason, so the
+  compose file starts `vllm2` only once `vllm` is healthy.
 - Extra `vllm serve` flags (`--max-num-seqs`, `--enable-prefix-caching`,
   `--guided-decoding-backend xgrammar`, ...) go in `VLLM_EXTRA_ARGS` /
   `VLLM2_EXTRA_ARGS`, appended verbatim to the command line.
