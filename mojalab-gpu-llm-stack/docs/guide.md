@@ -326,6 +326,24 @@ not virtualization. The reasons to containerize are pragmatic:
 The one trade-off is that the `ollama` CLI on the host is gone; use
 `docker compose exec ollama ollama list` instead.
 
+### Serving two vLLM models (teacher/critic pattern)
+
+One vLLM process serves exactly one model. For a second model
+(e.g. a large "teacher" and a small "critic"), enable the optional
+`vllm2` service: `ENABLE_VLLM2=yes` plus the `VLLM2_*` variables in
+`config.env`. Each container has its own HF model, served name and
+GPU memory fraction; LiteLLM routes to both by name.
+
+Two caveats when both share one GPU:
+
+- `GPU_MEM_UTIL` is a fraction of **total** VRAM, reserved up front by
+  each process. The two fractions must sum to ≤ ~0.90 (e.g. teacher
+  0.55 + critic 0.35), otherwise the first process to start grabs the
+  memory and the second OOMs.
+- Extra `vllm serve` flags (`--max-num-seqs`, `--enable-prefix-caching`,
+  `--guided-decoding-backend xgrammar`, ...) go in `VLLM_EXTRA_ARGS` /
+  `VLLM2_EXTRA_ARGS`, appended verbatim to the command line.
+
 ### vLLM-specific notes
 
 vLLM in containers needs two non-obvious settings, both already baked into

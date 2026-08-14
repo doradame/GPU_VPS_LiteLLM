@@ -63,7 +63,11 @@ jobs:
                  OLLAMA_MODELS_PULL='gemma4:31b llama3.1:8b' \
                  OLLAMA_KEEP_ALIVE=24h OLLAMA_MAX_LOADED_MODELS=2 OLLAMA_NUM_PARALLEL=1 \
                  VLLM_IMAGE_TAG=v0.8.5 VLLM_MODEL=test/model VLLM_SERVED_NAME=testvllm \
-                 VLLM_GPU_MEM_UTIL=0.85 VLLM_MAX_MODEL_LEN=8192 HF_TOKEN= \
+                 VLLM_GPU_MEM_UTIL=0.55 VLLM_MAX_MODEL_LEN=4096 HF_TOKEN= \
+                 VLLM_EXTRA_ARGS='--max-num-seqs 24 --enable-prefix-caching --guided-decoding-backend xgrammar' \
+                 ENABLE_VLLM2=yes VLLM2_MODEL=test/model2 VLLM2_SERVED_NAME=testvllm2 \
+                 VLLM2_GPU_MEM_UTIL=0.35 VLLM2_MAX_MODEL_LEN=4096 \
+                 VLLM2_EXTRA_ARGS='--guided-decoding-backend xgrammar' \
                  NVIDIA_DRIVER_PKG=nvidia-driver-580-server \
                  LITELLM_IMAGE=ghcr.io/berriai/litellm:latest
           ./scripts/00-preflight.sh </dev/null
@@ -89,6 +93,10 @@ jobs:
           sudo docker compose --env-file .env config >/dev/null
           sudo grep -q 'model: ollama/gemma4:31b'   litellm-config.yaml
           sudo grep -q 'model: ollama/llama3.1:8b'  litellm-config.yaml
-          sudo grep -q 'model: openai/testvllm'     litellm-config.yaml
+          sudo grep -q 'model: openai/testvllm$'    litellm-config.yaml
+          sudo grep -q 'model: openai/testvllm2'    litellm-config.yaml
+          # EXTRA_ARGS must reach the vllm command line intact, spaces included
+          sudo docker compose --env-file .env config | grep -q -- '--max-num-seqs 24'
+          sudo docker compose --env-file .env config | grep -q 'vllm2'
           sudo test -x backup-db.sh
           sudo test -f /etc/cron.d/llm-db-backup

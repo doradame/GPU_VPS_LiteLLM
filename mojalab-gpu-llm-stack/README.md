@@ -117,6 +117,8 @@ Key settings:
 | `OLLAMA_IMAGE_TAG` | Pinned Ollama image tag (see github.com/ollama/ollama/releases) |
 | `OLLAMA_MODELS_PULL` | Space-separated Ollama tags pulled by step 06 |
 | `VLLM_MODEL` | HuggingFace model id for vLLM |
+| `VLLM_EXTRA_ARGS` | Extra flags appended verbatim to `vllm serve` |
+| `ENABLE_VLLM2` / `VLLM2_*` | Optional second vLLM model in its own container |
 | `LITELLM_MASTER_KEY` | Auto-generated `sk-...` key — save it in a password manager |
 
 ## Day-to-day operations
@@ -169,6 +171,17 @@ cd ${DATA_MOUNT}/stack && docker compose --env-file .env restart litellm
 Edit `VLLM_MODEL` / `VLLM_SERVED_NAME` in `config.env`, re-run steps 05 and 06,
 then `up -d vllm`.
 
+### Serving two vLLM models (e.g. teacher + critic)
+
+One vLLM process serves one model, so a second model runs in its own
+container: set `ENABLE_VLLM2=yes` and the `VLLM2_*` variables in
+`config.env`, re-run steps 05 and 06, then `up -d`. When both share a GPU,
+each `GPU_MEM_UTIL` is a fraction of **total** VRAM reserved up front — the
+two fractions must sum to ≤ ~0.90 (e.g. 0.55 + 0.35) or the first process
+starves the second. Any additional `vllm serve` flag (`--max-num-seqs`,
+`--enable-prefix-caching`, `--guided-decoding-backend xgrammar`, ...) goes
+in `VLLM_EXTRA_ARGS` / `VLLM2_EXTRA_ARGS`.
+
 ## Documentation
 
 - **[Full guide](docs/guide.md)** — narrative walkthrough explaining what each
@@ -207,7 +220,8 @@ They have different sweet spots:
   swapping, GGUF quantization, simple model registry.
 - **vLLM** — best for "one or two pinned models, many concurrent requests".
   PagedAttention + continuous batching give 3-10× higher throughput under
-  load. One process per served model, so each costs you a container.
+  load. One process per served model, so each costs you a container — the
+  stack supports two (`vllm` + optional `vllm2`).
 
 LiteLLM routes between them based on the `model` field in each request, so
 clients see a single unified API.

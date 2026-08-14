@@ -70,6 +70,14 @@ http_post_json "$BASE/v1/chat/completions" "$LITELLM_MASTER_KEY" \
     "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one short sentence.\"}]}"
 echo
 
+if [ "${ENABLE_VLLM2:-no}" = "yes" ] && [ -n "${VLLM2_SERVED_NAME:-}" ]; then
+    step "Chat completion (second vLLM model)"
+    info "Using model: $VLLM2_SERVED_NAME"
+    http_post_json "$BASE/v1/chat/completions" "$LITELLM_MASTER_KEY" \
+        "{\"model\":\"$VLLM2_SERVED_NAME\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one short sentence.\"}]}"
+    echo
+fi
+
 step "Caddy public endpoint (expect 403 from this host unless its IP is in ALLOWED_IPS)"
 HTTP_CODE="$(curl -ksS -o /dev/null -w '%{http_code}' "https://$DOMAIN/health/liveliness" || true)"
 case "$HTTP_CODE" in

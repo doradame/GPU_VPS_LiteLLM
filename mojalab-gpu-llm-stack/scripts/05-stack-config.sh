@@ -25,10 +25,20 @@ if [ -z "${POSTGRES_PASSWORD:-}" ]; then
     write_config POSTGRES_PASSWORD "$POSTGRES_PASSWORD"
 fi
 
+# Defaults for variables introduced after an older config.env was written
+ENABLE_VLLM2="${ENABLE_VLLM2:-no}"
+VLLM_EXTRA_ARGS="${VLLM_EXTRA_ARGS:-}"
+VLLM2_MODEL="${VLLM2_MODEL:-}"
+VLLM2_SERVED_NAME="${VLLM2_SERVED_NAME:-}"
+VLLM2_GPU_MEM_UTIL="${VLLM2_GPU_MEM_UTIL:-0.35}"
+VLLM2_MAX_MODEL_LEN="${VLLM2_MAX_MODEL_LEN:-8192}"
+VLLM2_EXTRA_ARGS="${VLLM2_EXTRA_ARGS:-}"
+
 # Compose profiles
 PROFILES=""
 [ "$ENABLE_OLLAMA" = "yes" ] && PROFILES="${PROFILES}ollama,"
 [ "$ENABLE_VLLM" = "yes" ]   && PROFILES="${PROFILES}vllm,"
+[ "$ENABLE_VLLM2" = "yes" ]  && PROFILES="${PROFILES}vllm2,"
 PROFILES="${PROFILES%,}"
 
 step "Writing $STACK_DIR/.env"
@@ -55,7 +65,14 @@ VLLM_MODEL=$VLLM_MODEL
 VLLM_SERVED_NAME=$VLLM_SERVED_NAME
 VLLM_GPU_MEM_UTIL=$VLLM_GPU_MEM_UTIL
 VLLM_MAX_MODEL_LEN=$VLLM_MAX_MODEL_LEN
+VLLM_EXTRA_ARGS=$VLLM_EXTRA_ARGS
 HF_TOKEN=$HF_TOKEN
+
+VLLM2_MODEL=$VLLM2_MODEL
+VLLM2_SERVED_NAME=$VLLM2_SERVED_NAME
+VLLM2_GPU_MEM_UTIL=$VLLM2_GPU_MEM_UTIL
+VLLM2_MAX_MODEL_LEN=$VLLM2_MAX_MODEL_LEN
+VLLM2_EXTRA_ARGS=$VLLM2_EXTRA_ARGS
 EOF
 chmod 600 "$STACK_DIR/.env"
 
@@ -87,6 +104,15 @@ EOF
     litellm_params:
       model: openai/$VLLM_SERVED_NAME
       api_base: http://vllm:8000/v1
+      api_key: dummy
+EOF
+    fi
+    if [ "$ENABLE_VLLM2" = "yes" ]; then
+        cat <<EOF
+  - model_name: $VLLM2_SERVED_NAME
+    litellm_params:
+      model: openai/$VLLM2_SERVED_NAME
+      api_base: http://vllm2:8000/v1
       api_key: dummy
 EOF
     fi

@@ -33,20 +33,30 @@ if [ "$ENABLE_OLLAMA" = "yes" ] && [ -n "${OLLAMA_MODELS_PULL:-}" ]; then
     ok "Ollama models stored in $OLLAMA_DATA"
 fi
 
-if [ "$ENABLE_VLLM" = "yes" ] && [ -n "${VLLM_MODEL:-}" ]; then
-    step "Pre-downloading vLLM model into HF cache"
-    HF_CACHE="$DATA_MOUNT/vllm/hf-cache"
+pull_hf_model() {
+    local model="$1"
+    local HF_CACHE="$DATA_MOUNT/vllm/hf-cache"
     mkdir -p "$HF_CACHE"
-    HF_ARGS=()
+    local HF_ARGS=()
     [ -n "${HF_TOKEN:-}" ] && HF_ARGS+=(-e "HF_TOKEN=$HF_TOKEN" -e "HUGGING_FACE_HUB_TOKEN=$HF_TOKEN")
     docker run --rm \
         -v "$HF_CACHE":/root/.cache/huggingface \
         "${HF_ARGS[@]}" \
         --entrypoint python3 \
         "vllm/vllm-openai:$VLLM_IMAGE_TAG" \
-        -c "from huggingface_hub import snapshot_download; snapshot_download('$VLLM_MODEL')" \
-        || warn "HF download failed — vLLM will try again at runtime."
-    ok "vLLM model cached in $HF_CACHE"
+        -c "from huggingface_hub import snapshot_download; snapshot_download('$model')" \
+        || warn "HF download failed for $model — vLLM will try again at runtime."
+    ok "$model cached in $HF_CACHE"
+}
+
+if [ "$ENABLE_VLLM" = "yes" ] && [ -n "${VLLM_MODEL:-}" ]; then
+    step "Pre-downloading vLLM model into HF cache"
+    pull_hf_model "$VLLM_MODEL"
+fi
+
+if [ "${ENABLE_VLLM2:-no}" = "yes" ] && [ -n "${VLLM2_MODEL:-}" ]; then
+    step "Pre-downloading second vLLM model into HF cache"
+    pull_hf_model "$VLLM2_MODEL"
 fi
 
 mark_done 06-pull-models

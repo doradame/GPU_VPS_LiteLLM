@@ -106,6 +106,8 @@ services:
               count: all
               capabilities: [gpu]
 
+  # One vLLM process serves one model; vllm2 below is the optional second
+  # model. Shell-form command so ${VLLM_EXTRA_ARGS} can carry any extra flags.
   vllm:
     profiles: ["vllm"]
     image: vllm/vllm-openai:${VLLM_IMAGE_TAG}
@@ -119,25 +121,57 @@ services:
       HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN}
     volumes:
       - ../vllm/hf-cache:/root/.cache/huggingface
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - "--model"
-      - "${VLLM_MODEL}"
-      - "--served-model-name"
-      - "${VLLM_SERVED_NAME}"
-      - "--gpu-memory-utilization"
-      - "${VLLM_GPU_MEM_UTIL}"
-      - "--max-model-len"
-      - "${VLLM_MAX_MODEL_LEN}"
-      - "--host"
-      - "0.0.0.0"
-      - "--port"
-      - "8000"
+      - >-
+        exec vllm serve '${VLLM_MODEL}'
+        --served-model-name '${VLLM_SERVED_NAME}'
+        --gpu-memory-utilization '${VLLM_GPU_MEM_UTIL}'
+        --max-model-len '${VLLM_MAX_MODEL_LEN}'
+        --host 0.0.0.0 --port 8000
+        ${VLLM_EXTRA_ARGS}
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 10
       # First start can take minutes: model download + weight loading.
+      start_period: 600s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  vllm2:
+    profiles: ["vllm2"]
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG}
+    restart: unless-stopped
+    expose:
+      - "8000"
+    ipc: host
+    shm_size: "8gb"
+    environment:
+      HF_TOKEN: ${HF_TOKEN}
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN}
+    volumes:
+      - ../vllm/hf-cache:/root/.cache/huggingface
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        exec vllm serve '${VLLM2_MODEL}'
+        --served-model-name '${VLLM2_SERVED_NAME}'
+        --gpu-memory-utilization '${VLLM2_GPU_MEM_UTIL}'
+        --max-model-len '${VLLM2_MAX_MODEL_LEN}'
+        --host 0.0.0.0 --port 8000
+        ${VLLM2_EXTRA_ARGS}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
       start_period: 600s
     deploy:
       resources:
