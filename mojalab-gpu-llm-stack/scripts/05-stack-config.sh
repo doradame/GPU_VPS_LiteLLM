@@ -130,7 +130,12 @@ MAILTO=""
 EOF
 chmod 644 /etc/cron.d/llm-db-backup
 
-chown -R root:root "$STACK_DIR"
+# Own only what this script renders. NEVER recurse over the whole stack dir:
+# pgdata/ belongs to the postgres container user, and chown-ing it while the
+# DB is running yields "could not open file: Permission denied" mid-flight.
+chown root:root "$STACK_DIR" "$STACK_DIR/.env" "$STACK_DIR/docker-compose.yml" \
+    "$STACK_DIR/litellm-config.yaml" "$STACK_DIR/backup-db.sh"
+chown -R root:root "$STACK_DIR/caddy"
 
 step "Summary"
 ls -la "$STACK_DIR"

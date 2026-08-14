@@ -104,7 +104,15 @@ jobs:
         run: |
           set -euo pipefail
           touch .state/04-nvidia-toolkit.done
+          # Simulate a live postgres data dir: 05 must NOT touch its ownership.
+          sudo mkdir -p /tmp/llm/stack/pgdata
+          sudo touch /tmp/llm/stack/pgdata/PG_VERSION
+          sudo chown -R 999:999 /tmp/llm/stack/pgdata
           sudo ./scripts/05-stack-config.sh
+          owner="$(stat -c '%u' /tmp/llm/stack/pgdata/PG_VERSION)"
+          if [ "$owner" != "999" ]; then
+            echo "FAIL: 05 changed pgdata ownership (now uid $owner) — postgres would lose its files"; exit 1
+          fi
       - name: Validate rendered stack
         run: |
           set -euo pipefail
