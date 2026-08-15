@@ -60,6 +60,14 @@ What does NOT come with the volume:
    the data-root on the encrypted volume already has content, Docker picks
    up the existing images and volumes.
 
+   Expect two harmless artifacts of the move on first start: compose warns
+   that the `caddy_data`/`caddy_config` volumes "already exist" (it adopts
+   them), and containers surviving from the previous host may fail to start
+   with "network ... not found" — their compose network died with the old
+   VM. `07-stack-up.sh` handles that by recreating them; if you bring the
+   stack up manually, run `docker compose --env-file .env down
+   --remove-orphans` once before `up -d`.
+
 5. **Skip the config and model steps** — they're already on the disk:
 
    ```bash

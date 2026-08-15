@@ -21,7 +21,15 @@ step "Building local images (litellm + Pillow)"
 docker compose --env-file .env build
 
 step "Starting services"
-docker compose --env-file .env up -d
+# After a disaster recovery the surviving containers reference the compose
+# network of the previous host, which no longer exists ("network ... not
+# found"). If a plain up fails, recreate everything: data lives in bind
+# mounts and named volumes, so this is safe.
+if ! docker compose --env-file .env up -d; then
+    warn "up failed — recreating containers (stale state from a previous host?)"
+    docker compose --env-file .env down --remove-orphans
+    docker compose --env-file .env up -d
+fi
 
 step "Status"
 docker compose --env-file .env ps
