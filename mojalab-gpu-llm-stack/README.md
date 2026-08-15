@@ -87,7 +87,9 @@ sudo ./scripts/06-pull-models.sh
 # 8. Bring up the stack
 sudo ./scripts/07-stack-up.sh
 
-# 9. Smoke test
+# 9. Smoke test — first wait until every service is healthy:
+#    cd ${DATA_MOUNT}/stack && docker compose --env-file .env ps
+#    (vLLM takes minutes to load weights; 08-test refuses to run early)
 sudo ./scripts/08-test.sh
 
 # Optional: host firewall via UFW (gotchas handled internally)

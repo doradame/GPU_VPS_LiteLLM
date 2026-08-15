@@ -516,9 +516,23 @@ period before declaring failure.
 
 ## Part 10 — Testing
 
+Before testing, make sure everything is actually up — the previous
+section explains why this takes minutes:
+
+```bash
+cd ${DATA_MOUNT}/stack && docker compose --env-file .env ps
+# every service must show (healthy)
+```
+
+Then:
+
 ```bash
 sudo ./scripts/08-test.sh
 ```
+
+The script performs the same check itself and refuses to probe while
+anything is still `starting` — better an explicit "not yet" than a
+misleading connection error.
 
 The script runs three probes:
 

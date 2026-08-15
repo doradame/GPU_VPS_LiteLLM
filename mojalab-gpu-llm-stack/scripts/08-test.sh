@@ -15,6 +15,20 @@ load_config
 STACK_DIR="$DATA_MOUNT/stack"
 cd "$STACK_DIR"
 
+step "Checking service health first"
+docker compose --env-file .env ps
+# Every service has a healthcheck; don't probe until they all pass.
+# (model loading into VRAM takes minutes — that's normal, not a hang)
+if STATUS="$(docker compose --env-file .env ps --format '{{.Service}} {{.Health}}' 2>/dev/null)"; then
+    NOT_HEALTHY="$(printf '%s\n' "$STATUS" | awk '$2 != "healthy" {print $1}')"
+    if [ -n "$NOT_HEALTHY" ]; then
+        die "Not healthy yet: $(printf '%s' "$NOT_HEALTHY" | tr '\n' ' '). Retry when 'docker compose --env-file .env ps' shows every service healthy."
+    fi
+    ok "all services healthy"
+else
+    warn "could not read health status (old compose?) — proceeding anyway"
+fi
+
 # Caddy blocks anything outside ALLOWED_IPS with 403, so probing the public
 # URL from the VPS itself would fail. Run probes from inside the litellm
 # container instead, hitting the app directly on localhost:4000.
