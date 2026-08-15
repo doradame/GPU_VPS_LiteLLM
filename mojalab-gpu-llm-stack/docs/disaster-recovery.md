@@ -71,6 +71,24 @@ What does NOT come with the volume:
 
 6. **Optional**: rerun `99-ufw.sh` if you used UFW originally.
 
+## Recovering onto a different GPU
+
+Nothing on the encrypted volume is GPU-specific — models are just files,
+images are generic, the DB doesn't care. What matters on the new card is
+**total VRAM** and **architecture age**:
+
+| New GPU | What to do |
+|---|---|
+| Same VRAM class as before | Nothing — bring the stack up as-is |
+| More VRAM | Works as-is (fractions become conservative). Optionally raise `VLLM_MAX_MODEL_LEN` or `--max-num-seqs` to use the headroom |
+| Less VRAM | Recompute the `GPU_MEM_UTIL` fractions (below). Model weights are absolute GB: a model whose weights exceed its budget cannot load at any fraction — swap it for a smaller one |
+| Architecture newer than the pinned vLLM release | vLLM may lack kernels for it (`no kernel image available for execution on the device`): bump `VLLM_IMAGE_TAG` (and possibly `NVIDIA_DRIVER_PKG`) in `config.env`, re-run step 05, `up -d` |
+
+Rule of thumb: `GPU_MEM_UTIL = needed_budget_GB / total_VRAM_GB`, where a
+model's budget is its weights plus a few GB of KV cache. On a shared GPU,
+remember the second instance's cap is **cumulative** (first instance's
+fraction + its own share) — see the guide's two-model section.
+
 ## Time budget
 
 - First time: 30-45 minutes (driver install dominates).
