@@ -247,6 +247,7 @@ The one trade-off is that the `ollama` CLI on the host is gone; use
 | Symptom | Likely cause |
 |---|---|
 | `nvidia-smi` works on host but `--gpus all` container fails | Step 04 wasn't run, or docker wasn't restarted |
+| Stack "slow to start" after `up -d` | Normal: vLLM loads tens of GB of weights into VRAM (3–10 min; 10-min healthcheck grace). Watch `docker compose ps` for `healthy` and `nvidia-smi` for VRAM climbing. Crash-looping (`Up 40s` repeatedly) is a different story: read the logs |
 | LiteLLM healthcheck OK but model never responds | Model name in `litellm-config.yaml` doesn't match what the engine actually serves |
 | Caddy can't get a certificate | DNS not propagated, port 80 firewalled, or ACME rate limit (5 certs/week/domain) |
 | `vllm` OOMs on startup | Lower `VLLM_GPU_MEM_UTIL` or `VLLM_MAX_MODEL_LEN`; check the model fits at the chosen quant |

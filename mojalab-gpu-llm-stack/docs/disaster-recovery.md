@@ -103,6 +103,11 @@ fraction + its own share) — see the guide's two-model section.
 - Second time: 15-20 minutes.
 - After three rehearsals: 10-15 minutes.
 
+Those figures get the stack *started*; add the model warm-up on top —
+vLLM needs minutes to load weights into VRAM before turning `healthy`
+(sequentially, if two instances share the GPU). The stack is recovered
+when `08-test.sh` passes, not when `up -d` returns.
+
 ## Backup checklist (off the VPS)
 
 Keep these in a password manager / offline storage:

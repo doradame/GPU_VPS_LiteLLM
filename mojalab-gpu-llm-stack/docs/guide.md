@@ -482,6 +482,36 @@ Things to look for in the logs:
 - `vllm` (if enabled): `Uvicorn running on http://0.0.0.0:8000`
   (after model load — can take minutes the first time)
 
+### How long startup takes (what's normal)
+
+The stack is **not** up when `07-stack-up.sh` returns — it's up when
+`docker compose ps` shows every service `healthy`. Expected times:
+
+| Service | Typical | What it's doing |
+|---|---|---|
+| `db` | seconds | opening the existing data dir |
+| `litellm` | ~1 min | Prisma migrations (first run), then serving |
+| `vllm` / `vllm2` | **3–10 min** | reading tens of GB of weights from disk into VRAM, allocating the KV cache, compiling CUDA graphs |
+| `caddy` | last | waits for LiteLLM to be healthy; the very first start also requests the certificate (needs DNS pointing here) |
+
+A 30B-class model is ~20 GB of weights that must physically travel
+disk → RAM → VRAM: minutes are physics, not a hang. With two vLLM
+instances, the second starts only after the first is healthy, so the
+waits add up — budget ~10 minutes for a two-model cold start.
+
+How to tell "loading" from "stuck":
+
+```bash
+watch docker compose --env-file .env ps    # health column
+docker compose --env-file .env logs -f vllm  # shard loading progress bars
+nvidia-smi                                  # VRAM climbing = it's working
+```
+
+Worry only if a service shows a short uptime that keeps resetting
+(`Up 40 seconds`, again and again): that's a crash loop, not a slow
+load — read its logs. The vLLM healthchecks allow a 10-minute grace
+period before declaring failure.
+
 ---
 
 ## Part 10 — Testing
