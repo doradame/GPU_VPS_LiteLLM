@@ -59,8 +59,8 @@ announces itself before running and writes a marker into `.state/` when complete
 so subsequent scripts refuse to run out of order.
 
 ```bash
-git clone https://github.com/<you>/mojalab-gpu-llm-stack.git
-cd mojalab-gpu-llm-stack
+git clone https://github.com/doradame/GPU_VPS_LiteLLM.git
+cd GPU_VPS_LiteLLM
 
 # 1. Collect configuration — interactive prompts, writes config.env
 ./scripts/00-preflight.sh
