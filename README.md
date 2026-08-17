@@ -12,6 +12,10 @@ Designed for ephemeral VMs: all persistent state lives on a LUKS-encrypted secon
 volume, so disaster recovery is "attach the disk to a new VM, run a handful of scripts,
 done".
 
+📖 **The story behind this stack** — why disposable VMs, the design choices, and the
+field lessons that became this repo's regression tests — is told in the companion
+article: [A Disposable GPU VPS for Your LLMs](https://mojalab.com/disposable-gpu-vps-for-llms-litellm-ollama-vllm/).
+
 ## What you get
 
 - **NVIDIA GPU** exposed to Docker containers via the NVIDIA Container Toolkit
@@ -302,6 +306,25 @@ The one trade-off is that the `ollama` CLI on the host is gone; use
     ├── guide.md
     └── disaster-recovery.md
 ```
+
+## Acknowledgements
+
+This stack invents very little: it arranges excellent open-source projects,
+without which none of this would be possible.
+
+- **[LiteLLM](https://github.com/BerriAI/litellm)** — the OpenAI-compatible
+  gateway at the heart of the stack: one API, key management, usage tracking,
+  and routing across whatever engines you enable.
+- **[vLLM](https://github.com/vllm-project/vllm)** — the high-throughput
+  inference engine: PagedAttention, continuous batching, and
+  grammar-constrained structured output.
+- **[Ollama](https://github.com/ollama/ollama)** — the model runner that makes
+  trying, swapping and serving GGUF models feel effortless, MoE included.
+
+And the quiet heavy lifters underneath: [Caddy](https://caddyserver.com),
+[PostgreSQL](https://www.postgresql.org), [Docker](https://www.docker.com) and
+containerd, [Let's Encrypt](https://letsencrypt.org), and
+[cryptsetup/LUKS](https://gitlab.com/cryptsetup/cryptsetup).
 
 ## License
 
