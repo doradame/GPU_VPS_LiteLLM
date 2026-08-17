@@ -269,6 +269,7 @@ The one trade-off is that the `ollama` CLI on the host is gone; use
 | Containers can't reach the network after enabling UFW | UFW flushed iptables; restart docker. See `scripts/99-ufw.sh` for the full fix |
 | OS disk fills up while pulling images | Docker 28+ stores images under containerd's root (`/var/lib/containerd`), not the data-root. Step 03 moves and verifies it; re-run it |
 | Disabled an engine but its container keeps running (and holding VRAM) | Compose doesn't stop containers of deactivated profiles. Re-run step 07 (it sweeps them) or `docker rm -f <container>` |
+| Build fails with `content digest ... not found` | BuildKit cache references image layers that no longer exist (typically after manual storage surgery): `docker builder prune -af` and rebuild |
 
 ## Repository layout
 

@@ -338,6 +338,26 @@ is decided by the `model` field in each request.
   after any LiteLLM upgrade: send a `json_schema` request and check the
   response actually validates, don't assume.
 
+### Thinking models as structured-output workers
+
+Reasoning models add three wrinkles worth knowing before you wire one
+into a schema-validated pipeline (all observed live):
+
+- The chain of thought arrives in a **separate field**
+  (`reasoning_content`), not in `content`: parsers should read
+  `content` (which is what constrained sampling guarantees) and treat
+  the reasoning as optional audit material.
+- Constrained sampling guarantees the **shape, not the intent**: the
+  model may not "know" about the schema at all — its reasoning can even
+  plan a completely different answer format — while the sampler still
+  forces valid JSON out. For quality *and* latency, also **declare the
+  expected fields in the prompt**: the model stops burning thinking
+  tokens agonizing over the missing format, and reasons toward the
+  fields it must fill.
+- If per-request latency matters more than reasoning depth, thinking
+  can be disabled per request (`think: false`, passed through by
+  LiteLLM) or in a Modelfile — measure both before choosing.
+
 ### Why containerized (and not Ollama on the host)?
 
 The "Ollama on host for low-overhead GPU" argument is folklore. With
@@ -681,6 +701,25 @@ usually state the minimum vLLM version. In that case:
    renamed, and some become defaults you can simply drop.
 4. `docker compose --env-file .env pull vllm vllm2 && docker compose
    --env-file .env up -d vllm vllm2`, then re-run `08-test.sh`.
+
+### Growing the data volume
+
+The encrypted volume can be grown online, without unmounting and
+without losing data. Three layers, grown in order after enlarging the
+volume on the provider side:
+
+```bash
+growpart /dev/vdb 1                                    # 1. the partition
+cryptsetup resize <mapper_name> --key-file <keyfile>   # 2. the LUKS mapping
+resize2fs /dev/mapper/<mapper_name>                    # 3. the filesystem
+df -h ${DATA_MOUNT}
+```
+
+Two provider gotchas: some hypervisors only apply the resize after a
+**full stop/start** of the VM (a reboot from inside is not always
+enough — if `lsblk` still shows the old size, that's why), and ext4
+reserves 5% of the filesystem for root by default (`tune2fs -m 1`
+reclaims most of it on a data-only volume).
 
 ### Reclaiming disk space after swaps
 
