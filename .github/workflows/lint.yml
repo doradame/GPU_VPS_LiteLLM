@@ -77,7 +77,7 @@ jobs:
           bash -euo pipefail -c '
             set -a; . ./config.env; set +a
             [ "$ALLOWED_IPS" = "1.2.3.4 5.6.7.8/32" ]
-            [ "$OLLAMA_MODELS_PULL" = "gemma4:31b llama3.1:8b" ]
+            [ "$OLLAMA_MODELS_PULL" = "gemma4:31b=bigmodel llama3.1:8b" ]
           '
       - name: Run 03-docker.sh for real (data-root + containerd on the data volume)
         run: |
