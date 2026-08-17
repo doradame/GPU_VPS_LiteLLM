@@ -26,6 +26,7 @@ if [ -z "${POSTGRES_PASSWORD:-}" ]; then
 fi
 
 # Defaults for variables introduced after an older config.env was written
+OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-8192}"
 ENABLE_VLLM2="${ENABLE_VLLM2:-no}"
 VLLM_EXTRA_ARGS="${VLLM_EXTRA_ARGS:-}"
 VLLM2_MODEL="${VLLM2_MODEL:-}"
@@ -59,6 +60,7 @@ OLLAMA_IMAGE_TAG=$OLLAMA_IMAGE_TAG
 OLLAMA_KEEP_ALIVE=$OLLAMA_KEEP_ALIVE
 OLLAMA_MAX_LOADED_MODELS=$OLLAMA_MAX_LOADED_MODELS
 OLLAMA_NUM_PARALLEL=$OLLAMA_NUM_PARALLEL
+OLLAMA_CONTEXT_LENGTH=$OLLAMA_CONTEXT_LENGTH
 
 VLLM_IMAGE_TAG=$VLLM_IMAGE_TAG
 VLLM_MODEL=$VLLM_MODEL
@@ -97,10 +99,13 @@ cp "$TPL/Caddyfile.tmpl"           "$STACK_DIR/caddy/Caddyfile"
             else
                 short="$(echo "$tag" | tr ':' '-' | tr '[:upper:]' '[:lower:]')"
             fi
+            # ollama_chat/ (the /api/chat provider) is the path LiteLLM maps
+            # response_format json_schema onto Ollama's native constrained
+            # sampling — plain ollama/ can silently drop the schema.
             cat <<EOF
   - model_name: $short
     litellm_params:
-      model: ollama/$tag
+      model: ollama_chat/$tag
       api_base: http://ollama:11434
 EOF
         done

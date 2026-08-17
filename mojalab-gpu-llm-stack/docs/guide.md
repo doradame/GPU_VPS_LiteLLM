@@ -320,6 +320,24 @@ or both at configuration time (Part 1), and `05-stack-config.sh` writes
 LiteLLM is what makes this seamless: clients see a single API, and routing
 is decided by the `model` field in each request.
 
+### Ollama in production: two gotchas the stack pre-empts
+
+- **Context length.** Ollama's default context is 4096 tokens and it
+  **silently truncates** anything longer — a prompt cut in half doesn't
+  error, it produces confident nonsense. The stack sets
+  `OLLAMA_CONTEXT_LENGTH` (default 8192) on the engine; raise it in
+  `config.env` if your prompts are bigger (mind VRAM: KV cache grows
+  with it).
+- **Structured output.** Ollama enforces JSON schemas natively via
+  constrained sampling, but the schema has to *reach* it: the stack
+  routes Ollama models through LiteLLM's `ollama_chat/` provider
+  (the `/api/chat` path that maps `response_format: json_schema` onto
+  Ollama's `format` parameter), because the plain `ollama/` route can
+  silently drop it. Translation layers have had bugs here — if your
+  pipeline depends on strict schemas, **verify with a real request**
+  after any LiteLLM upgrade: send a `json_schema` request and check the
+  response actually validates, don't assume.
+
 ### Why containerized (and not Ollama on the host)?
 
 The "Ollama on host for low-overhead GPU" argument is folklore. With

@@ -91,6 +91,8 @@ services:
       OLLAMA_FLASH_ATTENTION: "1"
       OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL}
       OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS}
+      # Ollama's own default context is 4096: prompts get silently truncated.
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH}
     volumes:
       - ../ollama:/root/.ollama
     healthcheck:
