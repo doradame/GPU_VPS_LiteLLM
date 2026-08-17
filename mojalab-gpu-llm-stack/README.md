@@ -171,7 +171,14 @@ cd ${DATA_MOUNT}/stack && docker compose --env-file .env restart litellm
 ### Switching the vLLM model
 
 Edit `VLLM_MODEL` / `VLLM_SERVED_NAME` in `config.env`, re-run steps 05 and 06,
-then `up -d vllm`.
+then `up -d vllm`. If the new model's architecture is **newer than the pinned
+vLLM release** (startup fails with an unknown-architecture error), also bump
+`VLLM_IMAGE_TAG` — mind that the image is shared, so both vLLM instances jump
+versions together, and that CLI flags in `VLLM_EXTRA_ARGS` may need review
+between releases. Old images and weights stay on the volume for easy rollback:
+reclaim space afterwards with `docker image prune -a` and by deleting unused
+model dirs under `${DATA_MOUNT}/vllm/hf-cache/hub/`. Details in the
+[guide](docs/guide.md).
 
 ### Serving two vLLM models (e.g. teacher + critic)
 

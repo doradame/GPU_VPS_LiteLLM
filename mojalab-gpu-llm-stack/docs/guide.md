@@ -620,10 +620,44 @@ Caddy only).
 
 ### Switching the vLLM model
 
-1. Edit `VLLM_MODEL` and `VLLM_SERVED_NAME` in `config.env`.
-2. Re-run 05 and 06.
-3. `docker compose --env-file .env up -d vllm` (recreates the
-   container with the new args).
+1. Edit `VLLM_MODEL` (and, if you want a new API name, `VLLM_SERVED_NAME`)
+   in `config.env` — or the `VLLM2_*` equivalents for the second instance.
+   Keeping the served name means clients don't notice the swap.
+2. `sudo ./scripts/06-pull-models.sh` (downloads the new weights) and
+   `sudo ./scripts/05-stack-config.sh` (re-renders the routing).
+3. `cd ${DATA_MOUNT}/stack && docker compose --env-file .env up -d vllm`
+   (or `vllm2`) — recreates the container with the new args.
+
+**If the new model is newer than the pinned vLLM release**, the engine
+won't know its architecture and dies at startup (typically an
+"architecture not supported" / unknown `model_type` error). Model cards
+usually state the minimum vLLM version. In that case:
+
+1. Bump `VLLM_IMAGE_TAG` in `config.env` to a release that supports it
+   (<https://github.com/vllm-project/vllm/releases>) — and check the
+   card's CUDA requirement against your driver.
+2. Mind that the image is **shared**: `vllm` and `vllm2` jump versions
+   together. The other model almost always works on the newer engine,
+   but re-test both.
+3. CLI flags evolve between releases: if a container dies with
+   `unrecognized arguments`, review your `VLLM_EXTRA_ARGS` — flags get
+   renamed, and some become defaults you can simply drop.
+4. `docker compose --env-file .env pull vllm vllm2 && docker compose
+   --env-file .env up -d vllm vllm2`, then re-run `08-test.sh`.
+
+### Reclaiming disk space after swaps
+
+Old engine images and old model weights stay on the volume until you
+remove them — by design, so a rollback is just reverting `config.env`
+and re-running step 05. Once the new setup is validated:
+
+```bash
+docker image prune -a          # drops images no longer referenced
+# Ollama models:
+docker compose --env-file .env exec ollama ollama rm <tag>
+# vLLM / HF models: each model is a directory under
+# ${DATA_MOUNT}/vllm/hf-cache/hub/models--<Org>--<Name> — delete it.
+```
 
 ### Adding a new service behind Caddy
 
