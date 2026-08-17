@@ -20,6 +20,22 @@ docker compose --env-file .env pull --ignore-buildable || \
 step "Building local images (litellm + Pillow)"
 docker compose --env-file .env build
 
+step "Sweeping containers of disabled services"
+# Disabling a profile (e.g. ENABLE_VLLM2=no) does NOT stop a container that
+# is already running, and --remove-orphans ignores it because the service is
+# still defined in the compose file. Compare running containers against the
+# services active under the current profiles and remove the leftovers.
+PROJECT="$(basename "$STACK_DIR")"
+ACTIVE_SERVICES="$(docker compose --env-file .env config --services)"
+docker ps -a --filter "label=com.docker.compose.project=$PROJECT" \
+    --format '{{.ID}} {{.Label "com.docker.compose.service"}}' \
+| while read -r cid svc; do
+    if ! printf '%s\n' "$ACTIVE_SERVICES" | grep -qx "$svc"; then
+        warn "service '$svc' is disabled in the current profiles — removing its container"
+        docker rm -f "$cid" >/dev/null
+    fi
+done
+
 step "Starting services"
 # After a disaster recovery the surviving containers reference the compose
 # network of the previous host, which no longer exists ("network ... not

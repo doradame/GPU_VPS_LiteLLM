@@ -268,6 +268,7 @@ The one trade-off is that the `ollama` CLI on the host is gone; use
 | `vllm` OOMs on startup | Lower `VLLM_GPU_MEM_UTIL` or `VLLM_MAX_MODEL_LEN`; check the model fits at the chosen quant |
 | Containers can't reach the network after enabling UFW | UFW flushed iptables; restart docker. See `scripts/99-ufw.sh` for the full fix |
 | OS disk fills up while pulling images | Docker 28+ stores images under containerd's root (`/var/lib/containerd`), not the data-root. Step 03 moves and verifies it; re-run it |
+| Disabled an engine but its container keeps running (and holding VRAM) | Compose doesn't stop containers of deactivated profiles. Re-run step 07 (it sweeps them) or `docker rm -f <container>` |
 
 ## Repository layout
 
