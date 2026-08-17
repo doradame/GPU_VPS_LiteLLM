@@ -202,6 +202,9 @@ in `VLLM_EXTRA_ARGS` / `VLLM2_EXTRA_ARGS`.
 
 ## Documentation
 
+- **[Companion article on MojaLab](https://mojalab.com/disposable-gpu-vps-for-llms-litellm-ollama-vllm/)** —
+  the story behind this stack: why disposable VMs, the design choices,
+  and the field lessons that became the regression tests below.
 - **[Full guide](docs/guide.md)** — narrative walkthrough explaining what each
   script does and why. Read this if you want to understand the architecture
   before running anything.
