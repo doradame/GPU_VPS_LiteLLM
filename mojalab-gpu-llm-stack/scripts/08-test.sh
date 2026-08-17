@@ -69,33 +69,17 @@ step "Models list (internal)"
 http_get "$BASE/v1/models" "$LITELLM_MASTER_KEY" | head -c 2000
 echo
 
-step "Chat completion (first enabled model)"
-MODEL=""
-if [ "$ENABLE_OLLAMA" = "yes" ] && [ -n "${OLLAMA_MODELS_PULL:-}" ]; then
-    first_entry="$(echo "$OLLAMA_MODELS_PULL" | awk '{print $1}')"
-    first_tag="${first_entry%%=*}"
-    if [ "$first_entry" != "$first_tag" ]; then
-        MODEL="${first_entry#*=}"
-    else
-        MODEL="$(echo "$first_tag" | tr ':' '-' | tr '[:upper:]' '[:lower:]')"
-    fi
-elif [ "$ENABLE_VLLM" = "yes" ]; then
-    MODEL="$VLLM_SERVED_NAME"
-fi
-[ -n "$MODEL" ] || die "No model available to test."
-
-info "Using model: $MODEL"
-http_post_json "$BASE/v1/chat/completions" "$LITELLM_MASTER_KEY" \
-    "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one short sentence.\"}]}"
-echo
-
-if [ "${ENABLE_VLLM2:-no}" = "yes" ] && [ -n "${VLLM2_SERVED_NAME:-}" ]; then
-    step "Chat completion (second vLLM model)"
-    info "Using model: $VLLM2_SERVED_NAME"
+step "Chat completion (every configured model)"
+# Engine-agnostic: the rendered litellm-config.yaml is the source of truth
+# for what this stack claims to serve — probe all of it.
+MODELS="$(awk '$1 == "-" && $2 == "model_name:" {print $3}' "$STACK_DIR/litellm-config.yaml")"
+[ -n "$MODELS" ] || die "No models found in $STACK_DIR/litellm-config.yaml."
+for MODEL in $MODELS; do
+    info "Using model: $MODEL (first request may load the model into VRAM)"
     http_post_json "$BASE/v1/chat/completions" "$LITELLM_MASTER_KEY" \
-        "{\"model\":\"$VLLM2_SERVED_NAME\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one short sentence.\"}]}"
+        "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one short sentence.\"}]}"
     echo
-fi
+done
 
 step "Caddy public endpoint (expect 403 from this host unless its IP is in ALLOWED_IPS)"
 HTTP_CODE="$(curl -ksS -o /dev/null -w '%{http_code}' "https://$DOMAIN/health/liveliness" || true)"

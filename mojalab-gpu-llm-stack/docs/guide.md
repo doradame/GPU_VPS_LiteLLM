@@ -545,7 +545,11 @@ The script performs the same check itself and refuses to probe while
 anything is still `starting` — better an explicit "not yet" than a
 misleading connection error.
 
-The script runs three probes:
+The script gates on every service being healthy, then probes: liveness,
+the model list, **a chat completion for every model in the rendered
+`litellm-config.yaml`** (engine-agnostic — vLLM and Ollama models alike;
+the first request to an Ollama model also loads it into VRAM), and the
+Caddy IP gate. In detail:
 
 1. **Liveness**: `GET /health/liveliness` on the public URL — confirms
    Caddy → LiteLLM → DB are all up.
