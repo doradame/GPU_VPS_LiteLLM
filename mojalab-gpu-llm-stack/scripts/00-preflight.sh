@@ -60,11 +60,12 @@ if [ "$ENABLE_VLLM" = "yes" ]; then
 
     prompt_yesno ENABLE_VLLM2 "Serve a SECOND vLLM model (extra container)?" "n"
     if [ "$ENABLE_VLLM2" = "yes" ]; then
-        warn "vLLM's GPU memory utilization is a cap on TOTAL GPU memory including other processes:"
-        warn "on a shared GPU the second instance needs a CUMULATIVE cap (e.g. first 0.55 -> second 0.55+0.35=0.90)."
+        warn "GPU memory fraction semantics DEPEND on the vLLM version (see docs/guide.md):"
+        warn "  old engines (v0.8.x): second instance needs a CUMULATIVE cap (0.55+0.35 -> 0.90)"
+        warn "  new engines (>= ~0.19): each instance declares its OWN share (0.35)"
         prompt_default VLLM2_MODEL         "Second HF model id"                 ""
         prompt_default VLLM2_SERVED_NAME   "Second name exposed to LiteLLM"     ""
-        prompt_default VLLM2_GPU_MEM_UTIL  "Second GPU memory utilization (cumulative cap)" "0.90"
+        prompt_default VLLM2_GPU_MEM_UTIL  "Second GPU memory utilization"      "0.35"
         prompt_default VLLM2_MAX_MODEL_LEN "Second max model context length"    "8192"
         prompt_default VLLM2_EXTRA_ARGS    "Second extra vllm serve flags"      ""
         [ -n "$VLLM2_MODEL" ] || die "VLLM2_MODEL cannot be empty when the second vLLM model is enabled."

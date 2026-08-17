@@ -66,7 +66,7 @@ jobs:
                  VLLM_GPU_MEM_UTIL=0.55 VLLM_MAX_MODEL_LEN=4096 HF_TOKEN= \
                  VLLM_EXTRA_ARGS='--max-num-seqs 24 --enable-prefix-caching --guided-decoding-backend xgrammar' \
                  ENABLE_VLLM2=yes VLLM2_MODEL=test/model2 VLLM2_SERVED_NAME=testvllm2 \
-                 VLLM2_GPU_MEM_UTIL=0.90 VLLM2_MAX_MODEL_LEN=4096 \
+                 VLLM2_GPU_MEM_UTIL=0.35 VLLM2_MAX_MODEL_LEN=4096 \
                  VLLM2_EXTRA_ARGS='--guided-decoding-backend xgrammar' \
                  NVIDIA_DRIVER_PKG=nvidia-driver-580-server \
                  LITELLM_IMAGE=ghcr.io/berriai/litellm:latest

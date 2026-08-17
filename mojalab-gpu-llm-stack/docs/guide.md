@@ -346,17 +346,28 @@ GPU memory fraction; LiteLLM routes to both by name.
 
 Two caveats when both share one GPU:
 
-- vLLM's `--gpu-memory-utilization` is a cap on **total** GPU memory
-  *including what other processes already occupy*, not a private share.
-  The second instance therefore needs a **cumulative** cap: teacher
-  `0.55`, critic `0.55 + 0.35 = 0.90`. With a non-cumulative value the
-  second engine finds its budget already exhausted and dies with
-  "No available memory for the cache blocks" (found the hard way on a
-  real deployment). Startup order matters for the same reason, so the
-  compose file starts `vllm2` only once `vllm` is healthy.
+- **How `--gpu-memory-utilization` is interpreted depends on the vLLM
+  version** — both behaviors found the hard way on the same deployment:
+  - *Older engines (e.g. the v0.8.x era)*: the fraction is a cap on
+    **total** GPU memory *including other processes*. The second
+    instance needs a **cumulative** cap (teacher `0.55`, critic
+    `0.55 + 0.35 = 0.90`), otherwise it finds its budget already
+    exhausted and dies with **"No available memory for the cache
+    blocks"**.
+  - *Newer engines (≥ ~0.19)*: the fraction is the instance's **own
+    share**, and startup requires that much memory to be *free*. Each
+    instance declares just its slice (teacher `0.55`, critic `0.35`);
+    a cumulative value now dies with **"Free memory on startup is less
+    than desired GPU memory utilization"**.
+  - The error message tells you which world you're in — adjust the
+    second instance's fraction accordingly. Startup order matters in
+    both worlds, so the compose file starts `vllm2` only once `vllm`
+    is healthy.
 - Extra `vllm serve` flags (`--max-num-seqs`, `--enable-prefix-caching`,
-  `--guided-decoding-backend xgrammar`, ...) go in `VLLM_EXTRA_ARGS` /
-  `VLLM2_EXTRA_ARGS`, appended verbatim to the command line.
+  ...) go in `VLLM_EXTRA_ARGS` / `VLLM2_EXTRA_ARGS`, appended verbatim
+  to the command line. Mind that flags appear, become defaults and get
+  removed across versions — after an engine bump, an instance dying
+  with `unrecognized arguments` means an EXTRA_ARGS flag needs to go.
 
 ### vLLM-specific notes
 

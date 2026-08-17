@@ -187,12 +187,15 @@ Details in the [guide](docs/guide.md).
 One vLLM process serves one model, so a second model runs in its own
 container: set `ENABLE_VLLM2=yes` and the `VLLM2_*` variables in
 `config.env`, re-run steps 05 and 06, then `up -d`. When both share a GPU,
-mind vLLM's semantics: `--gpu-memory-utilization` is a cap on **total** GPU
-memory *including other processes*, not a private share. So the second
-instance needs a **cumulative** cap — teacher `0.55`, critic
-`0.55 + 0.35 = 0.90` — and must start after the first has claimed its
-memory (the compose file orders `vllm2` after `vllm` becomes healthy for
-exactly this reason). Any additional `vllm serve` flag (`--max-num-seqs`,
+mind vLLM's memory semantics, which **changed across versions**: older
+engines (v0.8.x era) treat `--gpu-memory-utilization` as a cap on **total**
+GPU memory including other processes (second instance needs a *cumulative*
+value, e.g. `0.90`); newer engines (≥ ~0.19) treat it as the instance's
+**own share** checked against *free* memory (each declares just its slice,
+e.g. `0.35`). The startup error tells you which one you have — "No available
+memory for the cache blocks" means go cumulative, "Free memory on startup is
+less than desired" means go per-instance. In both worlds the compose file
+starts `vllm2` only after `vllm` is healthy. Any additional `vllm serve` flag (`--max-num-seqs`,
 `--enable-prefix-caching`, `--guided-decoding-backend xgrammar`, ...) goes
 in `VLLM_EXTRA_ARGS` / `VLLM2_EXTRA_ARGS`.
 
