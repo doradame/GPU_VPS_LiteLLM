@@ -24,7 +24,8 @@ if [ "$ENABLE_OLLAMA" = "yes" ] && [ -n "${OLLAMA_MODELS_PULL:-}" ]; then
         if docker exec ollama-puller ollama list >/dev/null 2>&1; then break; fi
         sleep 1
     done
-    for tag in $OLLAMA_MODELS_PULL; do
+    for entry in $OLLAMA_MODELS_PULL; do
+        tag="${entry%%=*}"   # strip an optional "=alias" suffix
         info "ollama pull $tag (this may take a while)"
         docker exec ollama-puller ollama pull "$tag" || warn "pull failed for $tag"
     done

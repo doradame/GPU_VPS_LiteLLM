@@ -88,8 +88,15 @@ cp "$TPL/Caddyfile.tmpl"           "$STACK_DIR/caddy/Caddyfile"
 {
     cat "$TPL/litellm-config.header.tmpl"
     if [ "$ENABLE_OLLAMA" = "yes" ]; then
-        for tag in $OLLAMA_MODELS_PULL; do
-            short="$(echo "$tag" | tr ':' '-' | tr '[:upper:]' '[:lower:]')"
+        # Each entry is either "tag" (API name derived from the tag) or
+        # "tag=alias" (API name pinned, e.g. gemma4:26b-a4b-it-qat=critic).
+        for entry in $OLLAMA_MODELS_PULL; do
+            tag="${entry%%=*}"
+            if [ "$entry" != "$tag" ]; then
+                short="${entry#*=}"
+            else
+                short="$(echo "$tag" | tr ':' '-' | tr '[:upper:]' '[:lower:]')"
+            fi
             cat <<EOF
   - model_name: $short
     litellm_params:

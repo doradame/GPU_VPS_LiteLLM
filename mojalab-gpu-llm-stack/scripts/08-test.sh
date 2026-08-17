@@ -72,8 +72,13 @@ echo
 step "Chat completion (first enabled model)"
 MODEL=""
 if [ "$ENABLE_OLLAMA" = "yes" ] && [ -n "${OLLAMA_MODELS_PULL:-}" ]; then
-    first_tag="$(echo "$OLLAMA_MODELS_PULL" | awk '{print $1}')"
-    MODEL="$(echo "$first_tag" | tr ':' '-' | tr '[:upper:]' '[:lower:]')"
+    first_entry="$(echo "$OLLAMA_MODELS_PULL" | awk '{print $1}')"
+    first_tag="${first_entry%%=*}"
+    if [ "$first_entry" != "$first_tag" ]; then
+        MODEL="${first_entry#*=}"
+    else
+        MODEL="$(echo "$first_tag" | tr ':' '-' | tr '[:upper:]' '[:lower:]')"
+    fi
 elif [ "$ENABLE_VLLM" = "yes" ]; then
     MODEL="$VLLM_SERVED_NAME"
 fi

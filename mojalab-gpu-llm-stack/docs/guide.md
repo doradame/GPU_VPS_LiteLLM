@@ -623,7 +623,11 @@ Caddy only).
 
 ### Adding an Ollama model
 
-1. Append the tag to `OLLAMA_MODELS_PULL` in `config.env`.
+1. Append the tag to `OLLAMA_MODELS_PULL` in `config.env`. By default
+   the API name is derived from the tag (`gemma4:31b` → `gemma4-31b`);
+   append `=alias` to pin it instead (`gemma4:26b-a4b-it-qat=critic`) —
+   useful to keep the client-facing name stable while the underlying
+   model changes.
 2. `sudo ./scripts/06-pull-models.sh` — only the new tag is downloaded.
 3. `sudo ./scripts/05-stack-config.sh` — re-renders
    `litellm-config.yaml` with the new model.

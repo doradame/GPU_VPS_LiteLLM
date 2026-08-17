@@ -117,7 +117,7 @@ Key settings:
 | `ALLOWED_IPS` | Space-separated IPs/CIDRs allowed through Caddy |
 | `ENABLE_OLLAMA` / `ENABLE_VLLM` | Toggle either engine independently |
 | `OLLAMA_IMAGE_TAG` | Pinned Ollama image tag (see github.com/ollama/ollama/releases) |
-| `OLLAMA_MODELS_PULL` | Space-separated Ollama tags pulled by step 06 |
+| `OLLAMA_MODELS_PULL` | Space-separated Ollama tags pulled by step 06; `tag=alias` pins the API name |
 | `VLLM_MODEL` | HuggingFace model id for vLLM |
 | `VLLM_EXTRA_ARGS` | Extra flags appended verbatim to `vllm serve` |
 | `ENABLE_VLLM2` / `VLLM2_*` | Optional second vLLM model in its own container |
