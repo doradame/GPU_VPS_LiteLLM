@@ -177,8 +177,10 @@ vLLM release** (startup fails with an unknown-architecture error), also bump
 versions together, and that CLI flags in `VLLM_EXTRA_ARGS` may need review
 between releases. Old images and weights stay on the volume for easy rollback:
 reclaim space afterwards with `docker image prune -a` and by deleting unused
-model dirs under `${DATA_MOUNT}/vllm/hf-cache/hub/`. Details in the
-[guide](docs/guide.md).
+model dirs under `${DATA_MOUNT}/vllm/hf-cache/hub/`. **Do the space math
+before swapping**: the transition briefly holds both generations (old+new
+image, old+new weights) — on a tight volume, remove the old generation first.
+Details in the [guide](docs/guide.md).
 
 ### Serving two vLLM models (e.g. teacher + critic)
 

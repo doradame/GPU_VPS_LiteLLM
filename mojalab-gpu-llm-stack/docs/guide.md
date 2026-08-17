@@ -647,9 +647,20 @@ usually state the minimum vLLM version. In that case:
 
 ### Reclaiming disk space after swaps
 
-Old engine images and old model weights stay on the volume until you
-remove them — by design, so a rollback is just reverting `config.env`
-and re-running step 05. Once the new setup is validated:
+**Do the space math BEFORE swapping, not after.** A swap temporarily
+holds *both* generations on the volume: old + new engine image (~20 GB
+each) and old + new model weights. If free space is less than the size
+of the incoming generation, the download dies mid-flight with the disk
+at 100% — and PostgreSQL on a full disk stops accepting writes. On a
+tight volume, invert the order: commit to the swap first —
+`docker compose rm -sf vllm vllm2`, remove the old engine image and the
+old model directory — *then* download the new generation. Rollback is
+still possible (revert `config.env`, re-run 06), it just costs a
+re-download.
+
+Old engine images and old model weights otherwise stay on the volume
+until you remove them — by design, so a rollback is just reverting
+`config.env` and re-running step 05. Once the new setup is validated:
 
 ```bash
 docker image prune -a          # drops images no longer referenced
