@@ -77,7 +77,7 @@ jobs:
           bash -euo pipefail -c '
             set -a; . ./config.env; set +a
             [ "$ALLOWED_IPS" = "1.2.3.4 5.6.7.8/32" ]
-            [ "$OLLAMA_MODELS_PULL" = "gemma4:31b llama3.1:8b" ]
+            [ "$OLLAMA_MODELS_PULL" = "gemma4:31b=bigmodel llama3.1:8b" ]
           '
       - name: Run 03-docker.sh for real (data-root + containerd on the data volume)
         run: |
@@ -119,10 +119,10 @@ jobs:
           set -euo pipefail
           cd /tmp/llm/stack
           sudo docker compose --env-file .env config >/dev/null
-          sudo grep -q 'model: ollama/gemma4:31b'   litellm-config.yaml
-          sudo grep -q 'model_name: bigmodel'       litellm-config.yaml
-          sudo grep -q 'model: ollama/llama3.1:8b'  litellm-config.yaml
-          sudo grep -q 'model_name: llama3.1-8b'    litellm-config.yaml
+          sudo grep -q 'model: ollama_chat/gemma4:31b'   litellm-config.yaml
+          sudo grep -q 'model_name: bigmodel'            litellm-config.yaml
+          sudo grep -q 'model: ollama_chat/llama3.1:8b'  litellm-config.yaml
+          sudo grep -q 'model_name: llama3.1-8b'         litellm-config.yaml
           sudo grep -q 'model: openai/testvllm$'    litellm-config.yaml
           sudo grep -q 'model: openai/testvllm2'    litellm-config.yaml
           # EXTRA_ARGS must reach the vllm command line intact, spaces included
