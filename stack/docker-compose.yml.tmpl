@@ -18,8 +18,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     healthcheck:
-      # Caddy's admin API (localhost:2019) is enabled by default.
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:2019/config/"]
+      # Caddy's admin API (port 2019) is enabled by default. Plain GET on
+      # 127.0.0.1: busybox wget's --spider sends HEAD (which the admin API
+      # may reject) and 'localhost' can resolve to ::1 inside the container.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
       interval: 30s
       timeout: 5s
       retries: 5
