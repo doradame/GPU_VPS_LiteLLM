@@ -39,6 +39,12 @@ else
     # disk disposal mostly decorative; prefer a passphrase-only setup there.
     [ -n "${DATA_IMG_SIZE:-}" ] \
         || die "DATA_DEVICE ($DATA_DEVICE) is not a block device. For single-disk mode set DATA_IMG_SIZE (e.g. 300G) in config.env."
+    # An explicit unit is mandatory: 'fallocate -l 300' means 300 BYTES and
+    # cryptsetup only tells you much later ("Device is too small").
+    case "$DATA_IMG_SIZE" in
+        *[0-9][MGTmgt]) : ;;
+        *) die "DATA_IMG_SIZE='$DATA_IMG_SIZE' needs a unit suffix (e.g. 300G)." ;;
+    esac
     CRYPT_SRC="$DATA_DEVICE"
     if [ ! -f "$DATA_DEVICE" ]; then
         warn "Single-disk mode: the encrypted volume will be a $DATA_IMG_SIZE file on the system disk."
@@ -47,6 +53,10 @@ else
         fallocate -l "$DATA_IMG_SIZE" "$DATA_DEVICE"
         chmod 600 "$DATA_DEVICE"
     fi
+    # Guard existing files too: a botched earlier run may have left a tiny one.
+    IMG_BYTES="$(stat -c%s "$DATA_DEVICE")"
+    [ "$IMG_BYTES" -ge $((64 * 1024 * 1024)) ] \
+        || die "$DATA_DEVICE is only $IMG_BYTES bytes — too small for LUKS2 (min ~64M). Remove it, fix DATA_IMG_SIZE, and re-run."
     info "Single-disk mode: LUKS directly on $DATA_DEVICE"
 fi
 
