@@ -1,9 +1,9 @@
 # GPU VPS LLM Stack — Full Guide
 
-> **Status: untested / work in progress.** This guide describes the intended
-> procedure; the scripts that implement it have been linted but not yet run
-> end-to-end on a real VPS. Treat every command as a draft until you have
-> verified it in your own environment.
+> **Status: validated end-to-end on real hardware.** The full sequence has
+> been executed on a real GPU VPS — including reboot survival, an online
+> volume resize, engine/model swaps and disaster recovery. Field bugs found
+> along the way are fixed and covered by CI regression tests.
 
 A reproducible procedure for setting up a production-grade local LLM proxy on a
 GPU VPS. Designed for ephemeral VMs that you shelve, unshelve, and occasionally

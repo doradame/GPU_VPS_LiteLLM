@@ -101,8 +101,9 @@ images are generic, the DB doesn't care. What matters on the new card is
 
 Rule of thumb: `GPU_MEM_UTIL = needed_budget_GB / total_VRAM_GB`, where a
 model's budget is its weights plus a few GB of KV cache. On a shared GPU,
-remember the second instance's cap is **cumulative** (first instance's
-fraction + its own share) — see the guide's two-model section.
+mind that the second instance's fraction semantics **depend on the vLLM
+version** (cumulative cap on old engines, own share on modern ones) — see
+the guide's two-model section for both worlds and their error messages.
 
 ## Time budget
 
