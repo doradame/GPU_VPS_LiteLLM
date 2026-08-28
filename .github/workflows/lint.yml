@@ -43,6 +43,45 @@ jobs:
       - name: write_config round-trip (spaces, quotes, metacharacters)
         run: bash scripts/tests/write-config-test.sh
 
+  luks-file-e2e:
+    # Runs the REAL 02-luks-volume.sh in single-disk (loopback file) mode:
+    # format, keyfile enrollment, mount, crypttab entry, and a close/reopen
+    # cycle with the keyfile — the same motions a reboot goes through.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preflight (non-interactive, file-mode config)
+        run: |
+          set -euo pipefail
+          export DATA_DEVICE=/tmp/llm-data.img DATA_IMG_SIZE=256M \
+                 DATA_MOUNT=/tmp/llm LUKS_NAME=ci_crypt LUKS_KEYFILE=/tmp/ci-llm.key \
+                 DOMAIN=llm.test.local ACME_EMAIL=a@b.c ALLOWED_IPS='1.2.3.4' \
+                 ENABLE_OLLAMA=no ENABLE_VLLM=yes ENABLE_VLLM2=no \
+                 OLLAMA_IMAGE_TAG= OLLAMA_MODELS_PULL= OLLAMA_KEEP_ALIVE= \
+                 OLLAMA_MAX_LOADED_MODELS= OLLAMA_NUM_PARALLEL= OLLAMA_CONTEXT_LENGTH= \
+                 VLLM_IMAGE_TAG=v0.8.5 VLLM_MODEL=test/model VLLM_SERVED_NAME=t \
+                 VLLM_GPU_MEM_UTIL=0.55 VLLM_MAX_MODEL_LEN=4096 VLLM_EXTRA_ARGS= HF_TOKEN= \
+                 VLLM2_MODEL= VLLM2_SERVED_NAME= VLLM2_GPU_MEM_UTIL=0.35 \
+                 VLLM2_MAX_MODEL_LEN=4096 VLLM2_EXTRA_ARGS= \
+                 NVIDIA_DRIVER_PKG=nvidia-driver-580-server \
+                 LITELLM_IMAGE=ghcr.io/berriai/litellm:latest
+          ./scripts/00-preflight.sh </dev/null
+      - name: Run 02-luks-volume.sh (LUKS on a loopback file)
+        run: |
+          set -euo pipefail
+          printf 'YES\n' | sudo env LUKS_PASSPHRASE=ci-test-passphrase ./scripts/02-luks-volume.sh
+          mountpoint /tmp/llm
+          sudo touch /tmp/llm/proof
+          grep -q '^ci_crypt /tmp/llm-data.img' /etc/crypttab
+      - name: Close and reopen with the keyfile (reboot rehearsal)
+        run: |
+          set -euo pipefail
+          sudo umount /tmp/llm
+          sudo cryptsetup close ci_crypt
+          sudo cryptsetup open --key-file /tmp/ci-llm.key /tmp/llm-data.img ci_crypt
+          sudo mount /dev/mapper/ci_crypt /tmp/llm
+          test -f /tmp/llm/proof && echo "OK: data survived the close/reopen cycle"
+
   scripts-render-e2e:
     # Runs the REAL scripts (00-preflight + 05-stack-config) instead of
     # hand-copying templates, then validates everything they produced.

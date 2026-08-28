@@ -54,7 +54,8 @@ disposable — the data on the encrypted volume is what matters.
 - **Ubuntu/Debian** (this guide is developed on recent Ubuntu; paths may vary
   slightly on Debian)
 - **NVIDIA GPU** — any modern data-center or consumer card
-- **Two block devices** — a primary OS disk and a secondary disk for data.
+- **Two block devices** — a primary OS disk and a secondary disk for data
+  (or a single disk using single-disk mode — see Part 3 for the trade-offs).
   This guide assumes `/dev/sda` and `/dev/sdb` but the device name is asked at
   configuration time.
 - **A registered domain name** with an A record pointing to the VPS public IP
@@ -208,6 +209,35 @@ finishes booting and remains reachable for repair.
 >
 > Copy the output to your offline password manager. To restore on a new VM,
 > decode it back to a binary file and `chmod 0400`.
+
+### Single-disk mode (no second block device)
+
+Some providers only give you the OS disk. The stack still works: set
+`DATA_DEVICE` to a **file path** (e.g. `/llm-data.img`) and
+`DATA_IMG_SIZE` (e.g. `300G`) in `config.env`, and step 02 creates the
+file and puts LUKS **directly on it** — no partitioning, no loop setup
+to manage: `/etc/crypttab` accepts a plain file as source and
+systemd-cryptsetup attaches the loop device by itself at every boot.
+Everything above the mountpoint (Docker, models, DB, backups) is
+identical to block-device mode.
+
+Two honest trade-offs, bigger than they look:
+
+- **The disaster-recovery story collapses.** There is no disk to
+  re-attach to a new VM: if the VM is terminated, the volume dies with
+  it. Off-site backups stop being good practice and become the only
+  safety net — ship the nightly DB dumps and `config.env` somewhere
+  else (models are re-downloadable, don't bother backing them up).
+- **The keyfile trade-off collapses too.** Keyfile and encrypted file
+  now live on the *same* disk: whoever obtains that disk has both, so
+  at-rest protection against disk disposal is mostly decorative. If
+  that protection matters on this box, skip the keyfile and use a
+  passphrase-only setup (manual unlock per boot).
+
+For automation, step 02 also honors a `LUKS_PASSPHRASE` environment
+variable to run non-interactively (this is how CI exercises it); for
+humans the interactive prompt is safer — environment variables leak
+into logs and process lists.
 
 ---
 

@@ -23,7 +23,12 @@ if ! grep -qiE 'ubuntu|debian' /etc/os-release 2>/dev/null; then
 fi
 
 step "Volume and mountpoint"
-prompt_default DATA_DEVICE  "Raw block device for the encrypted data volume"  "/dev/sdb"
+prompt_default DATA_DEVICE  "Block device for the encrypted volume (or a FILE path for single-disk mode)"  "/dev/sdb"
+if [ ! -b "$DATA_DEVICE" ]; then
+    warn "$DATA_DEVICE is not a block device (yet?)."
+    warn "If intentional (single-disk mode), the volume will be a LUKS loopback file — see docs/guide.md for the trade-offs."
+    prompt_default DATA_IMG_SIZE "Backing file size for single-disk mode (e.g. 300G)" "300G"
+fi
 prompt_default DATA_MOUNT   "Mountpoint for the unlocked volume"               "/srv/llm"
 LUKS_BASENAME="$(basename "$DATA_MOUNT")"
 prompt_default LUKS_NAME    "LUKS mapper name"                                 "${LUKS_BASENAME}_crypt"
@@ -84,7 +89,7 @@ prompt_default LITELLM_IMAGE "LiteLLM container image (PIN!)" "ghcr.io/berriai/l
 step "Writing $CONFIG_FILE"
 mkdir -p "$(dirname "$CONFIG_FILE")"
 touch "$CONFIG_FILE"; chmod 600 "$CONFIG_FILE"
-for v in DATA_DEVICE DATA_MOUNT LUKS_NAME LUKS_KEYFILE \
+for v in DATA_DEVICE DATA_IMG_SIZE DATA_MOUNT LUKS_NAME LUKS_KEYFILE \
          DOMAIN ACME_EMAIL ALLOWED_IPS \
          ENABLE_OLLAMA ENABLE_VLLM \
          OLLAMA_IMAGE_TAG OLLAMA_MODELS_PULL OLLAMA_KEEP_ALIVE OLLAMA_MAX_LOADED_MODELS OLLAMA_NUM_PARALLEL OLLAMA_CONTEXT_LENGTH \

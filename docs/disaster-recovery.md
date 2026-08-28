@@ -79,6 +79,13 @@ What does NOT come with the volume:
 
 6. **Optional**: rerun `99-ufw.sh` if you used UFW originally.
 
+## Single-disk mode has no disk to re-attach
+
+If the volume is a loopback file on the OS disk (single-disk mode), this
+whole procedure does not apply: the volume dies with the VM. Recovery is
+restore-from-backups — the nightly DB dumps and `config.env` you shipped
+off-site, plus re-running the full script chain (models re-download).
+
 ## Recovering onto a different GPU
 
 Nothing on the encrypted volume is GPU-specific — models are just files,

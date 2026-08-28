@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
-# 02-luks-volume.sh — create LUKS volume, keyfile, crypttab, fstab entries.
-# DESTRUCTIVE: this wipes ${DATA_DEVICE}. Idempotent on subsequent runs.
+# 02-luks-volume.sh — create the encrypted data volume: LUKS on a raw block
+# device (default), or on a loopback file when DATA_DEVICE is not a block
+# device ("single-disk mode", for providers that only give you the OS disk).
+# Creates keyfile, crypttab and fstab entries.
+# DESTRUCTIVE on first run against a block device. Idempotent afterwards.
+#
+# Automation hook: if LUKS_PASSPHRASE is set in the environment, format and
+# key enrollment run non-interactively (used by CI; for humans the
+# interactive prompt is safer — env vars leak into logs and process lists).
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib/common.sh
@@ -11,53 +18,86 @@ require_root
 require_done 00-preflight
 load_config
 
-step "Sanity checks"
-[ -b "$DATA_DEVICE" ] || die "$DATA_DEVICE is not a block device. Check lsblk."
-# Devices whose name ends in a digit (nvme0n1, mmcblk0) get a 'p' separator
-# before the partition number; classic sdX devices do not.
-case "$DATA_DEVICE" in
-    *[0-9]) PART="${DATA_DEVICE}p1" ;;
-    *)      PART="${DATA_DEVICE}1"  ;;
-esac
-
 apt-get install -y cryptsetup parted
 
-# Detect if already a LUKS volume
-if cryptsetup isLuks "$PART" 2>/dev/null; then
-    info "$PART is already a LUKS volume — skipping format."
+step "Sanity checks"
+if [ -b "$DATA_DEVICE" ]; then
+    MODE='block'
+    # Devices whose name ends in a digit (nvme0n1, mmcblk0) get a 'p' separator
+    # before the partition number; classic sdX devices do not.
+    case "$DATA_DEVICE" in
+        *[0-9]) PART="${DATA_DEVICE}p1" ;;
+        *)      PART="${DATA_DEVICE}1"  ;;
+    esac
+    CRYPT_SRC="$PART"
+    info "Block-device mode: LUKS on $PART"
 else
-    warn "About to WIPE $DATA_DEVICE and create a new LUKS volume."
-    echo "  Device: $DATA_DEVICE"
-    lsblk -no NAME,SIZE,MOUNTPOINT "$DATA_DEVICE" || true
-    confirm "Wipe and format $DATA_DEVICE ?"
+    MODE='file'
+    # Single-disk mode trade-offs (see docs/guide.md): if the VM dies the
+    # file dies with it — off-site backups become the only safety net — and
+    # a keyfile stored on the SAME disk makes at-rest encryption against
+    # disk disposal mostly decorative; prefer a passphrase-only setup there.
+    [ -n "${DATA_IMG_SIZE:-}" ] \
+        || die "DATA_DEVICE ($DATA_DEVICE) is not a block device. For single-disk mode set DATA_IMG_SIZE (e.g. 300G) in config.env."
+    CRYPT_SRC="$DATA_DEVICE"
+    if [ ! -f "$DATA_DEVICE" ]; then
+        warn "Single-disk mode: the encrypted volume will be a $DATA_IMG_SIZE file on the system disk."
+        warn "If this VM is terminated, the file is gone with it: keep off-site backups."
+        confirm "Create backing file $DATA_DEVICE ($DATA_IMG_SIZE)?"
+        fallocate -l "$DATA_IMG_SIZE" "$DATA_DEVICE"
+        chmod 600 "$DATA_DEVICE"
+    fi
+    info "Single-disk mode: LUKS directly on $DATA_DEVICE"
+fi
 
-    step "Wiping signatures and partitioning"
-    wipefs -a "$DATA_DEVICE"
-    parted "$DATA_DEVICE" --script mklabel gpt mkpart primary 0% 100%
-    # Wait for partition device node to appear
-    udevadm settle
-    [ -b "$PART" ] || die "Partition $PART did not appear after parted."
+# Detect if already a LUKS volume
+if cryptsetup isLuks "$CRYPT_SRC" 2>/dev/null; then
+    info "$CRYPT_SRC is already a LUKS volume — skipping format."
+else
+    if [ "$MODE" = block ]; then
+        warn "About to WIPE $DATA_DEVICE and create a new LUKS volume."
+        echo "  Device: $DATA_DEVICE"
+        lsblk -no NAME,SIZE,MOUNTPOINT "$DATA_DEVICE" || true
+        confirm "Wipe and format $DATA_DEVICE ?"
+
+        step "Wiping signatures and partitioning"
+        wipefs -a "$DATA_DEVICE"
+        parted "$DATA_DEVICE" --script mklabel gpt mkpart primary 0% 100%
+        # Wait for partition device node to appear
+        udevadm settle
+        [ -b "$PART" ] || die "Partition $PART did not appear after parted."
+    fi
 
     step "LUKS format"
-    info "You will be asked for a passphrase. SAVE IT in a password manager."
-    cryptsetup luksFormat --type luks2 "$PART"
+    if [ -n "${LUKS_PASSPHRASE:-}" ]; then
+        info "Using LUKS_PASSPHRASE from the environment (non-interactive)."
+        printf '%s' "$LUKS_PASSPHRASE" | cryptsetup luksFormat --type luks2 -q --key-file=- "$CRYPT_SRC"
+    else
+        info "You will be asked for a passphrase. SAVE IT in a password manager."
+        cryptsetup luksFormat --type luks2 "$CRYPT_SRC"
+    fi
 fi
 
 step "Keyfile"
 if [ ! -f "$LUKS_KEYFILE" ]; then
     dd if=/dev/urandom of="$LUKS_KEYFILE" bs=4096 count=1 status=none
     chmod 0400 "$LUKS_KEYFILE"
-    info "Created $LUKS_KEYFILE — adding to LUKS keyslots (you'll be prompted for the passphrase)"
-    cryptsetup luksAddKey "$PART" "$LUKS_KEYFILE"
+    if [ -n "${LUKS_PASSPHRASE:-}" ]; then
+        info "Created $LUKS_KEYFILE — enrolling it via LUKS_PASSPHRASE"
+        printf '%s' "$LUKS_PASSPHRASE" | cryptsetup luksAddKey --key-file=- "$CRYPT_SRC" "$LUKS_KEYFILE"
+    else
+        info "Created $LUKS_KEYFILE — adding to LUKS keyslots (you'll be prompted for the passphrase)"
+        cryptsetup luksAddKey "$CRYPT_SRC" "$LUKS_KEYFILE"
+    fi
 else
     info "$LUKS_KEYFILE already exists; checking it can open the volume"
-    cryptsetup --test-passphrase --key-file "$LUKS_KEYFILE" open "$PART" 2>/dev/null \
-        || die "Existing keyfile cannot open $PART. Remove $LUKS_KEYFILE or fix manually."
+    cryptsetup --test-passphrase --key-file "$LUKS_KEYFILE" open "$CRYPT_SRC" 2>/dev/null \
+        || die "Existing keyfile cannot open $CRYPT_SRC. Remove $LUKS_KEYFILE or fix manually."
 fi
 
 step "Opening volume"
 if [ ! -e "/dev/mapper/$LUKS_NAME" ]; then
-    cryptsetup open --key-file "$LUKS_KEYFILE" "$PART" "$LUKS_NAME"
+    cryptsetup open --key-file "$LUKS_KEYFILE" "$CRYPT_SRC" "$LUKS_NAME"
 else
     info "/dev/mapper/$LUKS_NAME already open"
 fi
@@ -70,8 +110,14 @@ mkdir -p "$DATA_MOUNT"
 mountpoint -q "$DATA_MOUNT" || mount "/dev/mapper/$LUKS_NAME" "$DATA_MOUNT"
 
 step "Persisting in /etc/crypttab"
-UUID="$(blkid -s UUID -o value "$PART")"
-LINE="$LUKS_NAME UUID=$UUID $LUKS_KEYFILE luks,nofail"
+if [ "$MODE" = block ]; then
+    UUID="$(blkid -s UUID -o value "$PART")"
+    LINE="$LUKS_NAME UUID=$UUID $LUKS_KEYFILE luks,nofail"
+else
+    # crypttab accepts a plain file path as source; systemd-cryptsetup
+    # attaches the loop device by itself at boot.
+    LINE="$LUKS_NAME $DATA_DEVICE $LUKS_KEYFILE luks,nofail"
+fi
 if ! grep -qE "^${LUKS_NAME}[[:space:]]" /etc/crypttab 2>/dev/null; then
     echo "$LINE" >> /etc/crypttab
 else
@@ -93,4 +139,7 @@ update-initramfs -u
 df -h "$DATA_MOUNT"
 mark_done 02-luks-volume
 warn "Back up $LUKS_KEYFILE OFF this VPS (e.g. base64 → password manager). Without it AND the passphrase, data is gone."
+if [ "$MODE" = file ]; then
+    warn "Single-disk mode: schedule OFF-SITE backups (DB dumps + config.env) — this volume dies with the VM."
+fi
 ok "Next: sudo scripts/03-docker.sh"
