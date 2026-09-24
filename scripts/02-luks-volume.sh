@@ -143,6 +143,33 @@ else
     info "/etc/fstab already has an entry for $DATA_MOUNT"
 fi
 
+if [ "$MODE" = file ]; then
+    step "Installing boot-time fallback unit (single-disk mode)"
+    # systemd's crypttab generator does support file-backed sources, but it
+    # has proven unreliable across reboots in the field (volume left locked
+    # after boot, twice). This oneshot is belt-and-suspenders: an idempotent
+    # unlock+mount ordered before the container runtimes, which already wait
+    # on the mountpoint via their RequiresMountsFor drop-ins.
+    cat > "/etc/systemd/system/luks-file-${LUKS_NAME}.service" <<EOF
+[Unit]
+Description=Unlock and mount ${DATA_MOUNT} (single-disk LUKS fallback)
+After=local-fs.target systemd-cryptsetup@${LUKS_NAME}.service
+Before=containerd.service docker.service
+ConditionPathExists=${DATA_DEVICE}
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'cryptsetup status ${LUKS_NAME} >/dev/null 2>&1 || cryptsetup open --key-file ${LUKS_KEYFILE} ${DATA_DEVICE} ${LUKS_NAME}; mountpoint -q ${DATA_MOUNT} || mount /dev/mapper/${LUKS_NAME} ${DATA_MOUNT}'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable "luks-file-${LUKS_NAME}.service"
+    ok "fallback unit luks-file-${LUKS_NAME}.service installed and enabled"
+fi
+
 step "Updating initramfs"
 update-initramfs -u
 

@@ -73,14 +73,17 @@ jobs:
           mountpoint /tmp/llm
           sudo touch /tmp/llm/proof
           grep -q '^ci_crypt /tmp/llm-data.img' /etc/crypttab
-      - name: Close and reopen with the keyfile (reboot rehearsal)
+      - name: Close and reopen via the fallback unit (reboot rehearsal)
         run: |
           set -euo pipefail
+          test -f /etc/systemd/system/luks-file-ci_crypt.service
           sudo umount /tmp/llm
           sudo cryptsetup close ci_crypt
-          sudo cryptsetup open --key-file /tmp/ci-llm.key /tmp/llm-data.img ci_crypt
-          sudo mount /dev/mapper/ci_crypt /tmp/llm
-          test -f /tmp/llm/proof && echo "OK: data survived the close/reopen cycle"
+          # The unit must bring the volume back on its own — the exact
+          # mechanism a boot relies on.
+          sudo systemctl start luks-file-ci_crypt.service
+          mountpoint /tmp/llm
+          test -f /tmp/llm/proof && echo "OK: the fallback unit restored the volume"
 
   scripts-render-e2e:
     # Runs the REAL scripts (00-preflight + 05-stack-config) instead of
