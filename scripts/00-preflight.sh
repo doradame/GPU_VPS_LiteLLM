@@ -71,6 +71,7 @@ if [ "$ENABLE_VLLM" = "yes" ]; then
         warn "  new engines (>= ~0.19): each instance declares its OWN share (0.35)"
         prompt_default VLLM2_MODEL         "Second HF model id"                 ""
         prompt_default VLLM2_SERVED_NAME   "Second name exposed to LiteLLM"     ""
+        prompt_default VLLM2_MODE          "Second instance mode (chat/rerank)" "chat"
         prompt_default VLLM2_GPU_MEM_UTIL  "Second GPU memory utilization"      "0.35"
         prompt_default VLLM2_MAX_MODEL_LEN "Second max model context length"    "8192"
         prompt_default VLLM2_EXTRA_ARGS    "Second extra vllm serve flags"      ""
@@ -94,7 +95,7 @@ for v in DATA_DEVICE DATA_IMG_SIZE DATA_MOUNT LUKS_NAME LUKS_KEYFILE \
          ENABLE_OLLAMA ENABLE_VLLM \
          OLLAMA_IMAGE_TAG OLLAMA_MODELS_PULL OLLAMA_KEEP_ALIVE OLLAMA_MAX_LOADED_MODELS OLLAMA_NUM_PARALLEL OLLAMA_CONTEXT_LENGTH \
          VLLM_IMAGE_TAG VLLM_MODEL VLLM_SERVED_NAME VLLM_GPU_MEM_UTIL VLLM_MAX_MODEL_LEN VLLM_EXTRA_ARGS HF_TOKEN \
-         ENABLE_VLLM2 VLLM2_MODEL VLLM2_SERVED_NAME VLLM2_GPU_MEM_UTIL VLLM2_MAX_MODEL_LEN VLLM2_EXTRA_ARGS \
+         ENABLE_VLLM2 VLLM2_MODE VLLM2_MODEL VLLM2_SERVED_NAME VLLM2_GPU_MEM_UTIL VLLM2_MAX_MODEL_LEN VLLM2_EXTRA_ARGS \
          NVIDIA_DRIVER_PKG LITELLM_IMAGE; do
     write_config "$v" "${!v:-}"
 done

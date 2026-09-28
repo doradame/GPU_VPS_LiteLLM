@@ -129,6 +129,7 @@ Key settings:
 | `VLLM_MODEL` | HuggingFace model id for vLLM |
 | `VLLM_EXTRA_ARGS` | Extra flags appended verbatim to `vllm serve` |
 | `ENABLE_VLLM2` / `VLLM2_*` | Optional second vLLM model in its own container |
+| `VLLM2_MODE` | `chat` (default) or `rerank` — a cross-encoder served through LiteLLM's `/rerank` endpoint |
 | `LITELLM_MASTER_KEY` | Auto-generated `sk-...` key — save it in a password manager |
 
 ## Day-to-day operations

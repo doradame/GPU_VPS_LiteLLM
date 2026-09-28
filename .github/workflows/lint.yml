@@ -108,7 +108,7 @@ jobs:
                  VLLM_IMAGE_TAG=v0.8.5 VLLM_MODEL=test/model VLLM_SERVED_NAME=testvllm \
                  VLLM_GPU_MEM_UTIL=0.55 VLLM_MAX_MODEL_LEN=4096 HF_TOKEN= \
                  VLLM_EXTRA_ARGS='--max-num-seqs 24 --enable-prefix-caching --guided-decoding-backend xgrammar' \
-                 ENABLE_VLLM2=yes VLLM2_MODEL=test/model2 VLLM2_SERVED_NAME=testvllm2 \
+                 ENABLE_VLLM2=yes VLLM2_MODE=rerank VLLM2_MODEL=test/model2 VLLM2_SERVED_NAME=testvllm2 \
                  VLLM2_GPU_MEM_UTIL=0.35 VLLM2_MAX_MODEL_LEN=4096 \
                  VLLM2_EXTRA_ARGS='--guided-decoding-backend xgrammar' \
                  NVIDIA_DRIVER_PKG=nvidia-driver-580-server \
@@ -166,7 +166,8 @@ jobs:
           sudo grep -q 'model: ollama_chat/llama3.1:8b'  litellm-config.yaml
           sudo grep -q 'model_name: llama3.1-8b'         litellm-config.yaml
           sudo grep -q 'model: openai/testvllm$'    litellm-config.yaml
-          sudo grep -q 'model: openai/testvllm2'    litellm-config.yaml
+          sudo grep -q 'model: hosted_vllm/testvllm2' litellm-config.yaml
+          sudo grep -q 'mode: rerank'                 litellm-config.yaml
           # EXTRA_ARGS must reach the vllm command line intact, spaces included
           sudo docker compose --env-file .env config | grep -q -- '--max-num-seqs 24'
           sudo docker compose --env-file .env config | grep -q 'vllm2'

@@ -28,6 +28,7 @@ fi
 # Defaults for variables introduced after an older config.env was written
 OLLAMA_CONTEXT_LENGTH="${OLLAMA_CONTEXT_LENGTH:-8192}"
 ENABLE_VLLM2="${ENABLE_VLLM2:-no}"
+VLLM2_MODE="${VLLM2_MODE:-chat}"
 VLLM_EXTRA_ARGS="${VLLM_EXTRA_ARGS:-}"
 VLLM2_MODEL="${VLLM2_MODEL:-}"
 VLLM2_SERVED_NAME="${VLLM2_SERVED_NAME:-}"
@@ -120,13 +121,30 @@ EOF
 EOF
     fi
     if [ "$ENABLE_VLLM2" = "yes" ]; then
-        cat <<EOF
+        case "$VLLM2_MODE" in
+        chat)
+            cat <<EOF
   - model_name: $VLLM2_SERVED_NAME
     litellm_params:
       model: openai/$VLLM2_SERVED_NAME
       api_base: http://vllm2:8000/v1
       api_key: dummy
 EOF
+            ;;
+        rerank)
+            # Scoring/cross-encoder model: LiteLLM reaches vLLM's native
+            # /rerank via the hosted_vllm/ provider; clients call /rerank.
+            cat <<EOF
+  - model_name: $VLLM2_SERVED_NAME
+    litellm_params:
+      model: hosted_vllm/$VLLM2_SERVED_NAME
+      api_base: http://vllm2:8000
+    model_info:
+      mode: rerank
+EOF
+            ;;
+        *) die "VLLM2_MODE='$VLLM2_MODE' — must be 'chat' or 'rerank'." ;;
+        esac
     fi
 } > "$STACK_DIR/litellm-config.yaml"
 

@@ -437,6 +437,26 @@ Two caveats when both share one GPU:
   removed across versions — after an engine bump, an instance dying
   with `unrecognized arguments` means an EXTRA_ARGS flag needs to go.
 
+### A reranker as the second instance
+
+The second slot doesn't have to be a chat model. With
+`VLLM2_MODE=rerank`, a cross-encoder (e.g. a small BGE reranker) is
+served by vLLM as a scoring model and routed through LiteLLM's
+`/rerank` endpoint — same domain, same API keys:
+
+```bash
+curl https://llm.example.com/rerank -H "Authorization: Bearer sk-..." \
+  -d '{"model": "reranker", "query": "...", "documents": ["...", "..."]}'
+```
+
+A ~0.5B reranker needs a tiny memory share (`VLLM2_GPU_MEM_UTIL=0.05`).
+On compute, the pairing is favorable — a small bursty scorer next to a
+large latency-tolerant generator, and chunked prefill (a modern-vLLM
+default) keeps long-prompt prefills from monopolizing the GPU — but
+watch the reranker's tail latency while the big model prefills huge
+prompts: if it ever becomes a problem, a sub-1B cross-encoder runs
+respectably on CPU, and moving it there frees the GPU entirely.
+
 ### vLLM-specific notes
 
 vLLM in containers needs two non-obvious settings, both already baked into
