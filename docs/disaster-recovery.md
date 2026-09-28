@@ -79,6 +79,13 @@ What does NOT come with the volume:
 
 6. **Optional**: rerun `99-ufw.sh` if you used UFW originally.
 
+## Single-disk mode has no disk to re-attach
+
+If the volume is a loopback file on the OS disk (single-disk mode), this
+whole procedure does not apply: the volume dies with the VM. Recovery is
+restore-from-backups — the nightly DB dumps and `config.env` you shipped
+off-site, plus re-running the full script chain (models re-download).
+
 ## Recovering onto a different GPU
 
 Nothing on the encrypted volume is GPU-specific — models are just files,
@@ -94,8 +101,9 @@ images are generic, the DB doesn't care. What matters on the new card is
 
 Rule of thumb: `GPU_MEM_UTIL = needed_budget_GB / total_VRAM_GB`, where a
 model's budget is its weights plus a few GB of KV cache. On a shared GPU,
-remember the second instance's cap is **cumulative** (first instance's
-fraction + its own share) — see the guide's two-model section.
+mind that the second instance's fraction semantics **depend on the vLLM
+version** (cumulative cap on old engines, own share on modern ones) — see
+the guide's two-model section for both worlds and their error messages.
 
 ## Time budget
 

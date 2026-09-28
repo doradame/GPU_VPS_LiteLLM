@@ -1,9 +1,9 @@
 # GPU VPS LLM Stack — Full Guide
 
-> **Status: untested / work in progress.** This guide describes the intended
-> procedure; the scripts that implement it have been linted but not yet run
-> end-to-end on a real VPS. Treat every command as a draft until you have
-> verified it in your own environment.
+> **Status: validated end-to-end on real hardware.** The full sequence has
+> been executed on a real GPU VPS — including reboot survival, an online
+> volume resize, engine/model swaps and disaster recovery. Field bugs found
+> along the way are fixed and covered by CI regression tests.
 
 A reproducible procedure for setting up a production-grade local LLM proxy on a
 GPU VPS. Designed for ephemeral VMs that you shelve, unshelve, and occasionally
@@ -54,7 +54,8 @@ disposable — the data on the encrypted volume is what matters.
 - **Ubuntu/Debian** (this guide is developed on recent Ubuntu; paths may vary
   slightly on Debian)
 - **NVIDIA GPU** — any modern data-center or consumer card
-- **Two block devices** — a primary OS disk and a secondary disk for data.
+- **Two block devices** — a primary OS disk and a secondary disk for data
+  (or a single disk using single-disk mode — see Part 3 for the trade-offs).
   This guide assumes `/dev/sda` and `/dev/sdb` but the device name is asked at
   configuration time.
 - **A registered domain name** with an A record pointing to the VPS public IP
@@ -208,6 +209,35 @@ finishes booting and remains reachable for repair.
 >
 > Copy the output to your offline password manager. To restore on a new VM,
 > decode it back to a binary file and `chmod 0400`.
+
+### Single-disk mode (no second block device)
+
+Some providers only give you the OS disk. The stack still works: set
+`DATA_DEVICE` to a **file path** (e.g. `/llm-data.img`) and
+`DATA_IMG_SIZE` (e.g. `300G`) in `config.env`, and step 02 creates the
+file and puts LUKS **directly on it** — no partitioning, no loop setup
+to manage: `/etc/crypttab` accepts a plain file as source and
+systemd-cryptsetup attaches the loop device by itself at every boot.
+Everything above the mountpoint (Docker, models, DB, backups) is
+identical to block-device mode.
+
+Two honest trade-offs, bigger than they look:
+
+- **The disaster-recovery story collapses.** There is no disk to
+  re-attach to a new VM: if the VM is terminated, the volume dies with
+  it. Off-site backups stop being good practice and become the only
+  safety net — ship the nightly DB dumps and `config.env` somewhere
+  else (models are re-downloadable, don't bother backing them up).
+- **The keyfile trade-off collapses too.** Keyfile and encrypted file
+  now live on the *same* disk: whoever obtains that disk has both, so
+  at-rest protection against disk disposal is mostly decorative. If
+  that protection matters on this box, skip the keyfile and use a
+  passphrase-only setup (manual unlock per boot).
+
+For automation, step 02 also honors a `LUKS_PASSPHRASE` environment
+variable to run non-interactively (this is how CI exercises it); for
+humans the interactive prompt is safer — environment variables leak
+into logs and process lists.
 
 ---
 
@@ -406,6 +436,26 @@ Two caveats when both share one GPU:
   to the command line. Mind that flags appear, become defaults and get
   removed across versions — after an engine bump, an instance dying
   with `unrecognized arguments` means an EXTRA_ARGS flag needs to go.
+
+### A reranker as the second instance
+
+The second slot doesn't have to be a chat model. With
+`VLLM2_MODE=rerank`, a cross-encoder (e.g. a small BGE reranker) is
+served by vLLM as a scoring model and routed through LiteLLM's
+`/rerank` endpoint — same domain, same API keys:
+
+```bash
+curl https://llm.example.com/rerank -H "Authorization: Bearer sk-..." \
+  -d '{"model": "reranker", "query": "...", "documents": ["...", "..."]}'
+```
+
+A ~0.5B reranker needs a tiny memory share (`VLLM2_GPU_MEM_UTIL=0.05`).
+On compute, the pairing is favorable — a small bursty scorer next to a
+large latency-tolerant generator, and chunked prefill (a modern-vLLM
+default) keeps long-prompt prefills from monopolizing the GPU — but
+watch the reranker's tail latency while the big model prefills huge
+prompts: if it ever becomes a problem, a sub-1B cross-encoder runs
+respectably on CPU, and moving it there frees the GPU entirely.
 
 ### vLLM-specific notes
 

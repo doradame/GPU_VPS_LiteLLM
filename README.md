@@ -50,7 +50,9 @@ disposable; the data on the encrypted volume is what matters.
 
 - Ubuntu/Debian (tested on Ubuntu 25.x)
 - An NVIDIA GPU (any modern data-center or consumer card)
-- Two block devices: a primary OS disk and a secondary disk for data
+- Two block devices: a primary OS disk and a secondary disk for data — or a
+  single disk using **single-disk mode** (LUKS on a loopback file; see the
+  [guide](docs/guide.md) for the trade-offs)
 - A registered domain with an A record pointing to the VPS
 - Console access to the provider's web UI, in case fstab/crypttab misconfiguration
   prevents normal boot
@@ -114,7 +116,8 @@ Key settings:
 
 | Variable | Meaning |
 |---|---|
-| `DATA_DEVICE` | Raw block device for the encrypted volume (e.g. `/dev/sdb`) |
+| `DATA_DEVICE` | Raw block device for the encrypted volume (e.g. `/dev/sdb`) — or a file path for single-disk mode |
+| `DATA_IMG_SIZE` | Single-disk mode only: size of the LUKS backing file (e.g. `300G`) |
 | `DATA_MOUNT` | Mountpoint where the unlocked volume is attached (e.g. `/srv/llm`) |
 | `LUKS_KEYFILE` | Root-owned keyfile used for automatic unlock at boot |
 | `DOMAIN` | Public FQDN — must have an A record pointing here |
@@ -126,6 +129,7 @@ Key settings:
 | `VLLM_MODEL` | HuggingFace model id for vLLM |
 | `VLLM_EXTRA_ARGS` | Extra flags appended verbatim to `vllm serve` |
 | `ENABLE_VLLM2` / `VLLM2_*` | Optional second vLLM model in its own container |
+| `VLLM2_MODE` | `chat` (default) or `rerank` — a cross-encoder served through LiteLLM's `/rerank` endpoint |
 | `LITELLM_MASTER_KEY` | Auto-generated `sk-...` key — save it in a password manager |
 
 ## Day-to-day operations
@@ -234,6 +238,11 @@ host. This is a deliberate trade-off:
 
 If you need protection against either of those, replace the keyfile with a
 passphrase prompt at boot or a remote unlock mechanism (Clevis + Tang).
+
+In **single-disk mode** the keyfile and the encrypted file share the same
+disk, so at-rest protection against disk disposal is mostly decorative —
+use a passphrase-only setup there if that protection matters, and treat
+off-site backups as the only disaster-recovery path.
 
 ## Engine notes
 

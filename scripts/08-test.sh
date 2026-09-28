@@ -69,15 +69,22 @@ step "Models list (internal)"
 http_get "$BASE/v1/models" "$LITELLM_MASTER_KEY" | head -c 2000
 echo
 
-step "Chat completion (every configured model)"
-# Engine-agnostic: the rendered litellm-config.yaml is the source of truth
-# for what this stack claims to serve — probe all of it.
-MODELS="$(awk '$1 == "-" && $2 == "model_name:" {print $3}' "$STACK_DIR/litellm-config.yaml")"
-[ -n "$MODELS" ] || die "No models found in $STACK_DIR/litellm-config.yaml."
-for MODEL in $MODELS; do
-    info "Using model: $MODEL (first request may load the model into VRAM)"
+step "Probing every configured model (by kind)"
+# Engine-agnostic: the rendered litellm-config.yaml is the source of truth.
+# Chat models get a completion; rerank models get a /rerank scoring probe.
+CHAT_MODELS="$(awk '$1 == "-" && $2 == "model_name:" {name=$3} $1 == "model:" && $2 !~ /^hosted_vllm\// {print name}' "$STACK_DIR/litellm-config.yaml")"
+RERANK_MODELS="$(awk '$1 == "-" && $2 == "model_name:" {name=$3} $1 == "model:" && $2 ~ /^hosted_vllm\// {print name}' "$STACK_DIR/litellm-config.yaml")"
+[ -n "$CHAT_MODELS$RERANK_MODELS" ] || die "No models found in $STACK_DIR/litellm-config.yaml."
+for MODEL in $CHAT_MODELS; do
+    info "Chat model: $MODEL (first request may load the model into VRAM)"
     http_post_json "$BASE/v1/chat/completions" "$LITELLM_MASTER_KEY" \
         "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one short sentence.\"}]}"
+    echo
+done
+for MODEL in $RERANK_MODELS; do
+    info "Rerank model: $MODEL"
+    http_post_json "$BASE/rerank" "$LITELLM_MASTER_KEY" \
+        "{\"model\":\"$MODEL\",\"query\":\"what is the capital of France?\",\"documents\":[\"Paris is the capital of France.\",\"Bananas are yellow.\"]}"
     echo
 done
 
